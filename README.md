@@ -1,63 +1,56 @@
-# PA3-3IABD1-JAEM
+## PA3-3IABD1-JAEM
 
-Projet annuel Machine Learning — Classification d’images  
-(Hello Kitty / Fake Hello Kitty / Other)
+Projet annuel Machine Learning — **classification d’images** (Hello Kitty / Fake Hello Kitty / Other).
 
----
+### Objectif
 
-## 🧠 Objectif
+Construire un pipeline simple :
+- **Prétraitement** (images → features / dataset \(X, y\))
+- **Entraînement** des modèles (from scratch)
+- **Évaluation** (à compléter au fur et à mesure)
 
-Implémenter plusieurs modèles de Machine Learning (from scratch) et les appliquer à un dataset d’images :
+Modèles visés :
+- **Modèle linéaire** (en cours)
+- **MLP** (à venir)
+- **RBF / SVM** (à venir)
 
-- Modèle linéaire (en cours)
-- Perceptron multi-couches (à venir)
-- RBF / SVM (à venir)
+### Arborescence
 
-Le projet inclut :
-- Prétraitement des images
-- Entraînement des modèles
-- Analyse des performances
-- (Plus tard) API + application
-
----
-
-## 📁 Arborescence actuelle
-
+```text
 PA3-3IABD1-JAEM/
 ├── README.md
 ├── .gitignore
 ├── requirements.txt
 │
-├── dataset_tools/            # Scripts Google Drive (upload images)
+├── dataset_tools/                 # Scripts Google Drive (ajout d’images)
 │   ├── drive_add_images.py
 │   ├── test_drive_add_images.py
 │   └── README.md
 │
-├── datasets/                # Données (ignorées par git)
+├── datasets/                      # Données (ignorées par git)
 │   └── raw/
 │       ├── hello_kitty/
 │       ├── fake_hello_kitty/
 │       └── other/
 │
-├── preprocessing/           # Transformation des images
-│   ├── build_dataset.py     # images → vecteurs (X, y)
-│   ├── split_dataset.py     # train / test split
-│   └── utils.py             # fonctions utilitaires
+├── preprocessing/                 # Prétraitement / construction du dataset
+│   ├── build_dataset.py           # images -> (X, y)
+│   ├── split_dataset.py           # split train / test
+│   └── utils.py                   # helpers
 │
-├── models/                  # Implémentation des modèles
+├── models/                        # Implémentations des modèles
 │   └── linear_model.py
 │
-├── training/                # Scripts d’entraînement
-│   └── train_linear.py
+└── training/                      # Scripts d’entraînement
+    └── train_linear.py
+```
 
-
----
-
-## ⚙️ Installation
+### Installation
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+```
 
 
