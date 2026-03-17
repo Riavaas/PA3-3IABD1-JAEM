@@ -10,15 +10,9 @@ PA3-3IABD1-JAEM/
 ├── .gitignore
 ├── requirements.txt
 ├── ml-lib/           # Implémentation C++ des modèles
-│   ├── linear_model.cpp
-│   ├── linear_model.h
-│   ├── mlp.cpp
-│   └── mlp.h
+│
 ├── python/           # Scripts de test et visualisation
-│   ├── generate_datasets.py
-│   ├── test_linear.py
-│   ├── test_mlp.py
-│   └── plot.py
+|
 ├── datasets/         # Jeux de données de test
 │   ├── linear.csv
 │   └── xor.csv
