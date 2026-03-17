@@ -1,44 +1,63 @@
 # PA3-3IABD1-JAEM
 
-Projet annuel Machine Learning — structure minimale.
+Projet annuel Machine Learning — Classification d’images  
+(Hello Kitty / Fake Hello Kitty / Other)
 
-## Arborescence
+---
 
-```
+## 🧠 Objectif
+
+Implémenter plusieurs modèles de Machine Learning (from scratch) et les appliquer à un dataset d’images :
+
+- Modèle linéaire (en cours)
+- Perceptron multi-couches (à venir)
+- RBF / SVM (à venir)
+
+Le projet inclut :
+- Prétraitement des images
+- Entraînement des modèles
+- Analyse des performances
+- (Plus tard) API + application
+
+---
+
+## 📁 Arborescence actuelle
+
 PA3-3IABD1-JAEM/
 ├── README.md
 ├── .gitignore
 ├── requirements.txt
-├── ml-lib/           # Implémentation C++ des modèles
 │
-├── python/           # Scripts de test et visualisation
-|
-├── datasets/         # Jeux de données de test
-│   ├── linear.csv
-│   └── xor.csv
-└── dataset_tools/     # Outils dataset Google Drive (Hello Kitty)
-    ├── drive_add_images.py
-    └── test_drive_add_images.py
-```
+├── dataset_tools/            # Scripts Google Drive (upload images)
+│   ├── drive_add_images.py
+│   ├── test_drive_add_images.py
+│   └── README.md
+│
+├── datasets/                # Données (ignorées par git)
+│   └── raw/
+│       ├── hello_kitty/
+│       ├── fake_hello_kitty/
+│       └── other/
+│
+├── preprocessing/           # Transformation des images
+│   ├── build_dataset.py     # images → vecteurs (X, y)
+│   ├── split_dataset.py     # train / test split
+│   └── utils.py             # fonctions utilitaires
+│
+├── models/                  # Implémentation des modèles
+│   └── linear_model.py
+│
+├── training/                # Scripts d’entraînement
+│   └── train_linear.py
 
-## Installation
+
+---
+
+## ⚙️ Installation
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-```
 
-## Utilisation
 
-- **ml-lib** : compiler et utiliser les binaires C++ (à compléter).
-- **python/** : génération de données, tests des modèles, plots.
-- **dataset_tools/** : alimentation du dataset images sur Google Drive (OAuth).  
-  Voir `dataset_tools/README.md` ou le docstring de `drive_add_images.py` pour la config.
-
-## Tests
-
-```bash
-# Tests dataset_tools (depuis la racine du projet)
-cd dataset_tools && pytest test_drive_add_images.py -v
-```

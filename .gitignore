@@ -1,39 +1,37 @@
-# OAuth Google Drive (dataset_tools) — ne jamais committer
+# =========================
+# 🔐 Google Drive (IMPORTANT)
+# =========================
 token.json
 credentials.json
 dataset_tools/drive_add_log.csv
 dataset_tools/drive_add_log_v2.csv
-datasets/*.png
 
-# Python
+# =========================
+# 🖼️ Dataset (lourd)
+# =========================
+datasets/raw/
+datasets/processed/
+datasets/splits/
+
+# =========================
+# 🐍 Python
+# =========================
 .venv/
 venv/
 env/
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-*.egg-info/
-.eggs/
-dist/
-build/
 
-# C++ (optionnel)
-*.o
-*.a
-*.out
-ml-lib/build/
-
-# Tests / outils
+# =========================
+# 🧪 Tests / cache
+# =========================
 .pytest_cache/
 .coverage
-htmlcov/
-.mypy_cache/
 
-# OS / IDE
+# =========================
+# 💻 OS / IDE
+# =========================
 .DS_Store
 Thumbs.db
-*.swp
 .idea/
 .vscode/
