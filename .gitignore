@@ -3,6 +3,7 @@
 # =========================
 token.json
 credentials.json
+dataset_tools/token *.json
 dataset_tools/drive_add_log.csv
 dataset_tools/drive_add_log_v2.csv
 
@@ -12,6 +13,7 @@ dataset_tools/drive_add_log_v2.csv
 datasets/raw/
 datasets/processed/
 datasets/splits/
+datasets/transformed/
 
 # =========================
 # 🐍 Python

@@ -53,4 +53,49 @@ source .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+### Construction du dataset (`preprocessing/build_dataset.py`)
+
+Le script `preprocessing/build_dataset.py` construit automatiquement le dataset utilisable pour l'entraînement.
+
+Ce qu'il fait :
+- (par défaut) télécharge les images depuis Google Drive (`dataset/hello_kitty`, `dataset/fake_hello_kitty`, `dataset/other`)
+- conserve une taille d'image unique (les images d'une autre taille sont ignorées avec un warning)
+- génère les features pour 3 variantes : `rgb`, `nb` (niveaux de gris), `contours`
+- exporte chaque variante en version `normalisee` et `non_normalisee`
+- sauvegarde `X.npy` (features) et `y.npy` (labels)
+
+Commande par défaut (avec téléchargement Drive) :
+
+```bash
+python3 preprocessing/build_dataset.py
+```
+
+Mode local (sans téléchargement Drive) :
+
+```bash
+python3 preprocessing/build_dataset.py --skip-drive
+```
+
+Tu peux aussi injecter des sources locales :
+
+```bash
+python3 preprocessing/build_dataset.py \
+  --skip-drive \
+  --source-vrai /chemin/vers/hello_kitty \
+  --source-faux /chemin/vers/fake_hello_kitty \
+  --source-other /chemin/vers/other
+```
+
+Emplacements de stockage :
+- `datasets/raw/` : images brutes par classe
+- `datasets/transformed/` : datasets prêts pour ML
+  - `rgb/normalisee/X.npy`, `rgb/normalisee/y.npy`
+  - `rgb/non_normalisee/X.npy`, `rgb/non_normalisee/y.npy`
+  - `nb/normalisee/...`, `nb/non_normalisee/...`
+  - `contours/normalisee/...`, `contours/non_normalisee/...`
+
+Remarques :
+- `.npy` est un format binaire NumPy 
+- Les dossiers `datasets/` sont ignorés par Git (données volumineuses).
+
 
