@@ -5,8 +5,10 @@ import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models.linear_model import LinearModel
+from models.mlp import MLP
 from preprocessing.utils import load_csv
+
+np.random.seed(42)
 
 datasets = {
     "linear": "datasets/linear.csv",
@@ -14,11 +16,11 @@ datasets = {
 }
 
 fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-fig.suptitle("Modèle linéaire")
+fig.suptitle("MLP")
 
 for idx, (nom, path) in enumerate(datasets.items()):
     X, y = load_csv(path)
-    model = LinearModel(lr=0.1, epochs=500)
+    model = MLP(hidden_sizes=[8], lr=0.5, epochs=3000)
     model.fit(X, y)
     acc = model.score(X, y)
 
@@ -41,7 +43,7 @@ for idx, (nom, path) in enumerate(datasets.items()):
     print(f"{nom} → accuracy = {acc:.4f}")
 
 plt.tight_layout()
-out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resultats_linear.png")
+out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resultats_mlp.png")
 plt.savefig(out, dpi=150)
 plt.show()
 print(f"Graphe sauvegardé : {out}")
