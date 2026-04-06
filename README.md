@@ -30,7 +30,7 @@ PA3-3IABD1-JAEM/
 ├── datasets/                      # Données (ignorées par git)
 │   └── raw/
 │       ├── hello_kitty/
-│       ├── fake_hello_kitty/
+│       ├── sanrio_other/
 │       └── other/
 │
 ├── preprocessing/                 # Prétraitement / construction du dataset

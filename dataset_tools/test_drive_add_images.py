@@ -176,7 +176,7 @@ def test_collect_image_paths_nonexistent() -> None:
 def test_get_next_number_for_label_empty() -> None:
     """Aucun fichier existant -> prochain numéro = 1."""
     assert m.get_next_number_for_label([], "hello_kitty") == 1
-    assert m.get_next_number_for_label([], "fake_hello_kitty") == 1
+    assert m.get_next_number_for_label([], "sanrio_other") == 1
     assert m.get_next_number_for_label([], "other") == 1
 
 
@@ -195,7 +195,7 @@ def test_get_next_number_for_label_ignores_other_labels() -> None:
     """Les noms d'autres labels ne comptent pas."""
     names = ["hk_000001.jpg", "fhk_000100.jpg", "other_000050.jpg"]
     assert m.get_next_number_for_label(names, "hello_kitty") == 2
-    assert m.get_next_number_for_label(names, "fake_hello_kitty") == 101
+    assert m.get_next_number_for_label(names, "sanrio_other") == 101
     assert m.get_next_number_for_label(names, "other") == 51
 
 
@@ -289,7 +289,7 @@ def test_run_upload_skips_duplicate(
     Image.new("RGB", (3, 3), color=(1, 2, 3)).save(img_path)
 
     mock_service.return_value = MagicMock()
-    mock_folders.return_value = {"hello_kitty": "fid_hello", "fake_hello_kitty": "fid_fake", "other": "fid_other"}
+    mock_folders.return_value = {"hello_kitty": "fid_hello", "sanrio_other": "fid_fake", "other": "fid_other"}
     mock_fetch_index.return_value = {}
 
     # Normalisation mockée -> bytes déterministes
@@ -345,7 +345,7 @@ def test_run_upload_new_file(
     Image.new("RGB", (5, 5), color=(10, 20, 30)).save(img_path)
 
     mock_service.return_value = MagicMock()
-    mock_folders.return_value = {"hello_kitty": "fid_hello", "fake_hello_kitty": "fid_fake", "other": "fid_other"}
+    mock_folders.return_value = {"hello_kitty": "fid_hello", "sanrio_other": "fid_fake", "other": "fid_other"}
     mock_list.return_value = []
     mock_fetch_index.return_value = {}
     mock_upload.return_value = "new_file_id_123"

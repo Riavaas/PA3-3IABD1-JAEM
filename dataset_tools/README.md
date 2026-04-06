@@ -2,7 +2,7 @@
 
 Outils pour alimenter le dataset images (Google Drive) : Hello Kitty / Fake Hello Kitty / Other.
 
-- **drive_add_images.py** : ajoute des images dans `Mon Drive/dataset/{hello_kitty|fake_hello_kitty|other}` avec normalisation (128×128, JPG), déduplication (md5 + phash) et log CSV.
+- **drive_add_images.py** : ajoute des images dans `Mon Drive/dataset/{hello_kitty|sanrio_other|other}` avec normalisation (128×128, JPG), déduplication (md5 + phash) et log CSV.
 - **test_drive_add_images.py** : tests pytest (mock, pas d’appel réel à l’API).
 
 ## Configuration
