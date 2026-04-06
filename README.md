@@ -1,56 +1,83 @@
 ## PA3-3IABD1-JAEM
 
-Projet annuel Machine Learning — **classification d’images** (Hello Kitty / Fake Hello Kitty / Other).
+Projet ML — classification d'images en 3 classes : **Hello Kitty**, **personnage Sanrio**, **autre**.
 
-### Objectif
+Les images sont stockées sur Google Drive (pas dans le dépôt). Le code tourne from scratch avec numpy.
 
-Construire un pipeline simple :
-- **Prétraitement** (images → features / dataset \(X, y\))
-- **Entraînement** des modèles (from scratch)
-- **Évaluation** (à compléter au fur et à mesure)
-
-Modèles visés :
-- **Modèle linéaire** (en cours)
-- **MLP** (à venir)
-- **RBF / SVM** (à venir)
-
-### Arborescence
-
-```text
-PA3-3IABD1-JAEM/
-├── README.md
-├── .gitignore
-├── requirements.txt
-│
-├── dataset_tools/                 # Scripts Google Drive (ajout d’images)
-│   ├── drive_add_images.py
-│   ├── test_drive_add_images.py
-│   └── README.md
-│
-├── datasets/                      # Données (ignorées par git)
-│   └── raw/
-│       ├── hello_kitty/
-│       ├── sanrio_other/
-│       └── other/
-│
-├── preprocessing/                 # Prétraitement / construction du dataset
-│   ├── build_dataset.py           # images -> (X, y)
-│   ├── split_dataset.py           # split train / test
-│   └── utils.py                   # helpers
-│
-├── models/                        # Implémentations des modèles
-│   └── linear_model.py
-│
-└── training/                      # Scripts d’entraînement
-    └── train_linear.py
-```
+---
 
 ### Installation
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate    # Windows: .venv\Scripts\activate
+source .venv/bin/activate    # Windows : .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+---
 
+### Arborescence
+
+```
+PA3-3IABD1-JAEM/
+├── datasets/
+│   ├── generate_linear.py      générer linear.csv
+│   ├── generate_xor.py         générer xor.csv
+│   ├── linear.csv
+│   └── xor.csv
+│
+├── dataset_tools/
+│   ├── drive_add_images.py     upload images vers Google Drive
+│   ├── test_drive_add_images.py
+│   └── README.md
+│
+├── preprocessing/
+│   ├── build_dataset.py        images Drive -> X.npy / y.npy
+│   ├── split_dataset.py        split train / test
+│   └── utils.py
+│
+├── models/
+│   ├── linear_model.py
+│   └── mlp.py
+│
+└── training/
+    ├── train_linear.py
+    └── train_mlp.py
+```
+
+---
+
+### Datasets simples
+
+```bash
+python datasets/generate_linear.py
+python datasets/generate_xor.py
+```
+
+---
+
+### Entraînement
+
+```bash
+python training/train_linear.py
+python training/train_mlp.py
+```
+
+---
+
+### Dataset réel (Google Drive)
+
+Placer `credentials.json` dans `dataset_tools/`, puis :
+
+```bash
+python dataset_tools/drive_add_images.py --label hello_kitty --input /chemin/vers/images
+python dataset_tools/drive_add_images.py --label sanrio_other --input /chemin/vers/images
+python dataset_tools/drive_add_images.py --label other --input /chemin/vers/images
+```
+
+Construire le dataset local :
+
+```bash
+python preprocessing/build_dataset.py
+python preprocessing/split_dataset.py --input datasets/transformed/rgb/normalisee --output datasets/splits/rgb
+```
