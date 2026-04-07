@@ -1,81 +1,194 @@
+#include <stdint.h>
 #include <stdio.h>
-
-#define MAX_POINTS 100
-//https://numiqo.fr/tutorial/linear-regression
-
+#include <stdlib.h>
 
 /*
- * Régression linéaire simple : on cherche une droite Y ≈ b*X + a
- * qui colle au mieux aux points (moindres carrés).
+ * Classifieur linéaire multi-classes (K=3) pour les features exportées depuis
+ * datasets/transformed/nb/normalisee.
  *
- * X = variable indépendante (ex. taille en mètres)
- * Y = variable dépendante (ex. poids en kg)
- * b = pente de la droite, a = valeur de Y quand X = 0 (ordonnée à l’origine)
+ * Format binaire attendu (généré par preprocessing/export_for_c_nb_normalisee.py):
+ *  - X: [int32 n][int32 d][float32 n*d] (row-major)
+ *  - y: [int32 n][int32 labels[n]] avec labels dans {0,1,2}
  *
- * En vrai : Y = b*X + a + epsilon  ;  epsilon = résidu (erreur)
+ * Modèle (perceptron multi-classes):
+ *   score_k = w_k · x + b_k
+ *   pred = argmax_k score_k
+ *   Si pred != y: w_y += lr*x ; w_pred -= lr*x ; b_y += lr ; b_pred -= lr
  */
 
-typedef struct {
-    double x;
-    double y;
-} DataPoint;
+#define K_CLASSES 3
+
+static void die(const char *msg) {
+    fprintf(stderr, "Erreur: %s\n", msg);
+    exit(1);
+}
+
+static size_t checked_mul_size(size_t a, size_t b) {
+    if (a == 0 || b == 0) {
+        return 0;
+    }
+    if (a > (SIZE_MAX / b)) {
+        die("Overflow allocation");
+    }
+    return a * b;
+}
+
+static float dot(const float *w, const float *x, int d) {
+    // Produit scalaire w·x (coeur du modèle linéaire).
+    float s = 0.0f;
+    for (int j = 0; j < d; j++) {
+        s += w[j] * x[j];
+    }
+    return s;
+}
+
+static int argmax3(const float s[K_CLASSES]) {
+    // Renvoie l'indice du score maximum (classe prédite).
+    int best = 0;
+    for (int k = 1; k < K_CLASSES; k++) {
+        if (s[k] > s[best]) {
+            best = k;
+        }
+    }
+    return best;
+}
+
+static void load_X(const char *path, int *out_n, int *out_d, float **out_X) {
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        perror(path);
+        die("Impossible d'ouvrir X");
+    }
+
+    int32_t n32 = 0, d32 = 0;
+    if (fread(&n32, sizeof(int32_t), 1, f) != 1) die("Lecture n échouée (X)");
+    if (fread(&d32, sizeof(int32_t), 1, f) != 1) die("Lecture d échouée (X)");
+    if (n32 <= 0 || d32 <= 0) die("n/d invalides (X)");
+
+    // Allocation du bloc X (n*d float32). Layout = row-major.
+    size_t n = (size_t)n32;
+    size_t d = (size_t)d32;
+    size_t count = checked_mul_size(n, d);
+    float *X = (float *)malloc(count * sizeof(float));
+    if (!X) die("malloc X");
+
+    if (fread(X, sizeof(float), count, f) != count) die("Lecture data échouée (X)");
+    fclose(f);
+
+    *out_n = (int)n32;
+    *out_d = (int)d32;
+    *out_X = X;
+}
+
+static void load_y(const char *path, int expected_n, int **out_y) {
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        perror(path);
+        die("Impossible d'ouvrir y");
+    }
+
+    int32_t n32 = 0;
+    if (fread(&n32, sizeof(int32_t), 1, f) != 1) die("Lecture n échouée (y)");
+    if (n32 != expected_n) die("n incohérent entre X et y");
+    if (n32 <= 0) die("n invalide (y)");
+
+    // Allocation du vecteur y (n labels) en mémoire.
+    size_t n = (size_t)n32;
+    int *y = (int *)malloc(n * sizeof(int));
+    if (!y) die("malloc y");
+
+    // y a été écrit en int32 dans le script Python
+    int32_t tmp = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (fread(&tmp, sizeof(int32_t), 1, f) != 1) die("Lecture label échouée (y)");
+        if (tmp < 0 || tmp >= K_CLASSES) die("Label hors plage (attendu 0..2)");
+        y[i] = (int)tmp;
+    }
+    fclose(f);
+    *out_y = y;
+}
+
+static float train_accuracy(const float *W, const float *b, const float *X, const int *y, int n, int d) {
+    // Mesure simple: accuracy sur les mêmes données (train).
+    int correct = 0;
+    for (int i = 0; i < n; i++) {
+        const float *xi = X + (size_t)i * (size_t)d;
+        float s[K_CLASSES];
+        for (int k = 0; k < K_CLASSES; k++) {
+            s[k] = dot(W + (size_t)k * (size_t)d, xi, d) + b[k];
+        }
+        int pred = argmax3(s);
+        if (pred == y[i]) correct++;
+    }
+    return (float)correct / (float)n;
+}
 
 int main(int argc, char *argv[]) {
-    DataPoint points[MAX_POINTS];
-    int n = 0;
+    // Par défaut on lit les exports générés par le script Python.
+    const char *x_path = "datasets/for_c/nb_normalisee_X.f32bin";
+    const char *y_path = "datasets/for_c/nb_normalisee_y.i32bin";
+    int epochs = 30;
+    float lr = 0.1f;
 
-    /* Sans argument : saisie au clavier. Avec un argument : lecture dans un fichier texte
-       (pour les données venant d’Excel : exporter/mettre une ligne = X puis Y, cf. test_points.txt) */
-    FILE *in = stdin;
-    if (argc >= 2) {
-        in = fopen(argv[1], "r");
-        if (!in) {
-            perror(argv[1]);
-            return 1;
-        }
-    } else {
-        printf("Entrez X et Y (deux nombres par ligne). Fin : -1 -1\n");
+    if (argc >= 3) {
+        x_path = argv[1];
+        y_path = argv[2];
     }
+    if (argc >= 4) epochs = atoi(argv[3]);
+    if (argc >= 5) lr = (float)atof(argv[4]);
 
-    while (n < MAX_POINTS) {
-        double x, y;
-        if (fscanf(in, "%lf %lf", &x, &y) != 2) {
+    int n = 0, d = 0;
+    float *X = NULL;
+    int *y = NULL;
+    load_X(x_path, &n, &d, &X);
+    load_y(y_path, n, &y);
+
+    printf("Chargé: n=%d, d=%d\n", n, d);
+    printf("Entraînement perceptron multi-classes (K=3), epochs=%d, lr=%.4f\n", epochs, lr);
+
+    // Paramètres du modèle: W (K*d) et b (K). Init à 0.
+    size_t wd = checked_mul_size((size_t)K_CLASSES, (size_t)d);
+    float *W = (float *)calloc(wd, sizeof(float));
+    float b[K_CLASSES] = {0.0f, 0.0f, 0.0f};
+    if (!W) die("calloc W");
+
+    for (int e = 0; e < epochs; e++) {
+        int updates = 0;
+        for (int i = 0; i < n; i++) {
+            const float *xi = X + (size_t)i * (size_t)d;
+            float s[K_CLASSES];
+            for (int k = 0; k < K_CLASSES; k++) {
+                s[k] = dot(W + (size_t)k * (size_t)d, xi, d) + b[k];
+            }
+            int pred = argmax3(s);
+            int yi = y[i];
+            if (pred != yi) {
+                // Règle perceptron: on "pousse" la vraie classe vers le haut
+                // et on "tire" la classe prédite vers le bas.
+                float *w_y = W + (size_t)yi * (size_t)d;
+                float *w_p = W + (size_t)pred * (size_t)d;
+                for (int j = 0; j < d; j++) {
+                    float v = lr * xi[j];
+                    w_y[j] += v;
+                    w_p[j] -= v;
+                }
+                b[yi] += lr;
+                b[pred] -= lr;
+                updates++;
+            }
+        }
+        float acc = train_accuracy(W, b, X, y, n, d);
+        printf("Epoch %d/%d: updates=%d, train_acc=%.3f\n", e + 1, epochs, updates, acc);
+        if (updates == 0) {
+            // Convergence rapide sur petits jeux
             break;
         }
-        if (in == stdin && x == -1 && y == -1) {
-            break;
-        }
-        points[n].x = x;
-        points[n].y = y;
-        n++;
     }
 
-    if (in != stdin) {
-        fclose(in);
-    }
+    printf("Accuracy finale (train): %.3f\n", train_accuracy(W, b, X, y, n, d));
 
-    if (n < 2) {
-        printf("Il faut au moins 2 points.\n");
-        return 1;
-    }
-
-    printf("\nPoints :\n");
-    for (int i = 0; i < n; i++) {
-        printf("Point %d : (%.2f, %.2f)\n", i + 1, points[i].x, points[i].y);
-    }
-
-    /* Formules des moindres carrés (n points) */
-    double sx = 0, sy = 0, sxx = 0, sxy = 0;
-    for (int i = 0; i < n; i++) {
-        sx += points[i].x;
-        sy += points[i].y;
-        sxx += points[i].x * points[i].x;
-        sxy += points[i].x * points[i].y;
-    }
-    double dn = (double)n;
-    double b = (dn * sxy - sx * sy) / (dn * sxx - sx * sx);
-    double a = (sy - b * sx) / dn;
-
-    printf("\nDroite : Y = %.4f * X + %.4f\n", b, a);
+    free(W);
+    free(X);
+    free(y);
     return 0;
 }
