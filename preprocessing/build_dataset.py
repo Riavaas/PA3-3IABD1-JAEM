@@ -14,8 +14,8 @@ from googleapiclient.http import MediaIoBaseDownload
 
 # https://www.youtube.com/watch?v=HvKpzGadlB4
 
-CLASSES = ["hello_kitty", "fake_hello_kitty", "other"]
-LABELS = {"hello_kitty": 0, "fake_hello_kitty": 1, "other": 2}
+CLASSES = ["hello_kitty", "fake_hello_kitty", "sanrio_other"]
+LABELS = {"hello_kitty": 0, "fake_hello_kitty": 1, "sanrio_other": 2}
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
@@ -59,14 +59,14 @@ def normaliser(img):
     return arr / 255.0
 
 
-def remplir_raw_depuis_sources(raw_dir, source_vrai, source_faux, source_other):
+def remplir_raw_depuis_sources(raw_dir, source_vrai, source_faux, source_sanrio_other):
     """
     Copie les images locales dans datasets/raw (inspiré de la logique de filtrage image).
     """
     mapping = [
         ("hello_kitty", source_vrai),
         ("fake_hello_kitty", source_faux),
-        ("other", source_other),
+        ("sanrio_other", source_sanrio_other),
     ]
     for class_name, source in mapping:
         target = raw_dir / class_name
@@ -133,7 +133,7 @@ def download_drive_file(service, file_id, dst_path):
 
 def remplir_raw_depuis_drive(raw_dir, drive_root_folder_name, credentials_path, token_path):
     """
-    Télécharge depuis My Drive/{drive_root_folder_name}/{hello_kitty|fake_hello_kitty|other}
+    Télécharge depuis My Drive/{drive_root_folder_name}/{hello_kitty|fake_hello_kitty|sanrio_other}
     vers datasets/raw.
     """
     service = get_drive_service(credentials_path, token_path)
@@ -179,7 +179,7 @@ def main():
     parser.add_argument("--output-dir", default=str(project_root / "datasets" / "transformed"))
     parser.add_argument("--source-vrai", default="")
     parser.add_argument("--source-faux", default="")
-    parser.add_argument("--source-other", default="")
+    parser.add_argument("--source-sanrio-other", default="")
     parser.add_argument("--skip-drive", action="store_true", help="Ne pas télécharger depuis Drive (mode local)")
     parser.add_argument("--drive-root-folder-name", default="dataset")
     parser.add_argument("--credentials", default=str(dataset_tools_dir / "credentials.json"))
@@ -192,9 +192,9 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Optionnel 1: copier depuis dossiers locaux.
-    remplir_raw_depuis_sources(raw_dir, args.source_vrai, args.source_faux, args.source_other)
+    remplir_raw_depuis_sources(raw_dir, args.source_vrai, args.source_faux, args.source_sanrio_other)
 
-    # Par défaut: télécharger depuis Google Drive (dataset/hello_kitty|fake_hello_kitty|other).
+    # Par défaut: télécharger depuis Google Drive (dataset/hello_kitty|fake_hello_kitty|sanrio_other).
     if not args.skip_drive:
         remplir_raw_depuis_drive(
             raw_dir,

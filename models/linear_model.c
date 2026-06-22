@@ -6,7 +6,7 @@
  * Classifieur linéaire multi-classes (K=3) pour les features exportées depuis
  * datasets/transformed/nb/normalisee.
  *
- * Format binaire attendu (généré par preprocessing/export_for_c_nb_normalisee.py):
+ * Format binaire  (généré par preprocessing/export_for_c_nb_normalisee.py):
  *  - X: [int32 n][int32 d][float32 n*d] (row-major)
  *  - y: [int32 n][int32 labels[n]] avec labels dans {0,1,2}
  *

@@ -3,17 +3,31 @@
 # =========================
 token.json
 credentials.json
-dataset_tools/token *.json
+dataset_tools/token*.json
 dataset_tools/drive_add_log.csv
 dataset_tools/drive_add_log_v2.csv
 
 # =========================
-# 🖼️ Dataset (lourd)
+# 🖼️ Dataset (lourd / généré)
 # =========================
 datasets/raw/
 datasets/processed/
 datasets/splits/
 datasets/transformed/
+datasets/for_c/
+# NB: datasets/toy/ N'EST PAS ignoré (linear.csv et xor.csv sont petits et utiles au groupe)
+
+# =========================
+# 📊 Sorties générées (graphes, poids, binaires C)
+# =========================
+plot_*.png
+models/poids.txt
+models/linear_csv
+models/linear_model
+models/linear_model_csv
+*.o
+*.out
+*.exe
 
 # =========================
 # 🐍 Python
