@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-LABELS_INV = {0: "hello_kitty", 1: "fake_hello_kitty", 2: "sanrio_other"}
+LABELS_INV = {0: "dry_road", 1: "wet_road", 2: "snowy_road"}
 
 
 def infer_hw_from_d_rgb(d: int) -> tuple[int, int]:

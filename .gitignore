@@ -15,6 +15,8 @@ datasets/processed/
 datasets/splits/
 datasets/transformed/
 datasets/for_c/
+built_datasets/**/X.npy
+built_datasets/**/y.npy
 # NB: datasets/toy/ N'EST PAS ignoré (linear.csv et xor.csv sont petits et utiles au groupe)
 
 # =========================
@@ -25,6 +27,7 @@ models/poids.txt
 models/linear_csv
 models/linear_model
 models/linear_model_csv
+rbf
 *.o
 *.out
 *.exe

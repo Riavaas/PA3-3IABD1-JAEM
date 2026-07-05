@@ -175,28 +175,28 @@ def test_collect_image_paths_nonexistent() -> None:
 
 def test_get_next_number_for_label_empty() -> None:
     """Aucun fichier existant -> prochain numéro = 1."""
-    assert m.get_next_number_for_label([], "hello_kitty") == 1
-    assert m.get_next_number_for_label([], "fake_hello_kitty") == 1
-    assert m.get_next_number_for_label([], "sanrio_other") == 1
+    assert m.get_next_number_for_label([], "dry_road") == 1
+    assert m.get_next_number_for_label([], "wet_road") == 1
+    assert m.get_next_number_for_label([], "snowy_road") == 1
 
 
 def test_get_next_number_for_label_from_existing() -> None:
     """Compteur basé sur les noms déjà présents."""
-    names = ["hk_000001.jpg", "hk_000003.png", "hk_000002.webp"]
-    assert m.get_next_number_for_label(names, "hello_kitty") == 4
+    names = ["dry_000001.jpg", "dry_000003.png", "dry_000002.webp"]
+    assert m.get_next_number_for_label(names, "dry_road") == 4
 
 
-def test_get_next_number_for_label_sanrio_other_prefix() -> None:
-    """sanrio_ -> prefix 'sanrio'."""
-    assert m.get_next_number_for_label(["sanrio_000010.jpg"], "sanrio_other") == 11
+def test_get_next_number_for_label_snowy_road_prefix() -> None:
+    """snowy_ -> prefix 'snowy'."""
+    assert m.get_next_number_for_label(["snowy_000010.jpg"], "snowy_road") == 11
 
 
 def test_get_next_number_for_label_ignores_other_labels() -> None:
     """Les noms d'autres labels ne comptent pas."""
-    names = ["hk_000001.jpg", "fhk_000100.jpg", "sanrio_000050.jpg"]
-    assert m.get_next_number_for_label(names, "hello_kitty") == 2
-    assert m.get_next_number_for_label(names, "fake_hello_kitty") == 101
-    assert m.get_next_number_for_label(names, "sanrio_other") == 51
+    names = ["dry_000001.jpg", "wet_000100.jpg", "snowy_000050.jpg"]
+    assert m.get_next_number_for_label(names, "dry_road") == 2
+    assert m.get_next_number_for_label(names, "wet_road") == 101
+    assert m.get_next_number_for_label(names, "snowy_road") == 51
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +207,7 @@ def test_get_next_number_for_label_ignores_other_labels() -> None:
 def test_is_duplicate_by_md5() -> None:
     """Si un fichier existant a le même md5, c'est un doublon."""
     service = MagicMock()
-    existing = [{"id": "x", "name": "hk_000001.jpg", "appProperties": {"md5": "abc123", "phash": "p1"}}]
+    existing = [{"id": "x", "name": "dry_000001.jpg", "appProperties": {"md5": "abc123", "phash": "p1"}}]
     index = {}
     assert m.is_duplicate(service, "folder_id", existing, index, "abc123", "p2") is True
 
@@ -215,14 +215,14 @@ def test_is_duplicate_by_md5() -> None:
 def test_is_duplicate_by_phash() -> None:
     """Si un fichier existant a le même phash, c'est un doublon."""
     service = MagicMock()
-    existing = [{"id": "x", "name": "hk_000001.jpg", "appProperties": {"md5": "m1", "phash": "phash_same"}}]
+    existing = [{"id": "x", "name": "dry_000001.jpg", "appProperties": {"md5": "m1", "phash": "phash_same"}}]
     index = {}
     assert m.is_duplicate(service, "folder_id", existing, index, "other_md5", "phash_same") is True
 
 
 def test_is_duplicate_no_match() -> None:
     """Pas de md5/phash commun -> pas doublon."""
-    existing = [{"id": "x", "name": "hk_000001.jpg", "appProperties": {"md5": "a", "phash": "b"}}]
+    existing = [{"id": "x", "name": "dry_000001.jpg", "appProperties": {"md5": "a", "phash": "b"}}]
     index = {}
     assert m.is_duplicate(MagicMock(), "f", existing, index, "c", "d") is False
 
@@ -248,7 +248,7 @@ def test_run_dry_run_no_drive_calls(mock_get_service: MagicMock, tmp_path: Path)
     img = tmp_path / "test.png"
     Image.new("RGB", (2, 2), color=(0, 0, 0)).save(img)
 
-    m.run(label="hello_kitty", input_path=img, dry_run=True, log_path=tmp_path / "log.csv")
+    m.run(label="dry_road", input_path=img, dry_run=True, log_path=tmp_path / "log.csv")
     mock_get_service.assert_not_called()
 
 
@@ -259,7 +259,7 @@ def test_run_dry_run_with_folder(mock_get_service: MagicMock, tmp_path: Path) ->
     Image.new("RGB", (1, 1), color=(1, 1, 1)).save(tmp_path / "a.png")
     Image.new("RGB", (1, 1), color=(2, 2, 2)).save(tmp_path / "b.png")
 
-    m.run(label="sanrio_other", input_path=tmp_path, dry_run=True, log_path=tmp_path / "log.csv")
+    m.run(label="snowy_road", input_path=tmp_path, dry_run=True, log_path=tmp_path / "log.csv")
     mock_get_service.assert_not_called()
 
 
@@ -289,7 +289,7 @@ def test_run_upload_skips_duplicate(
     Image.new("RGB", (3, 3), color=(1, 2, 3)).save(img_path)
 
     mock_service.return_value = MagicMock()
-    mock_folders.return_value = {"hello_kitty": "fid_hello", "fake_hello_kitty": "fid_fake", "sanrio_other": "fid_other"}
+    mock_folders.return_value = {"dry_road": "fid_hello", "wet_road": "fid_fake", "snowy_road": "fid_other"}
     mock_fetch_index.return_value = {}
 
     # Normalisation mockée -> bytes déterministes
@@ -308,13 +308,13 @@ def test_run_upload_skips_duplicate(
     )
 
     mock_list.return_value = [
-        {"id": "existing_id", "name": "hk_000001.jpg", "appProperties": {"md5": normalized_md5, "phash": normalized_phash}},
+        {"id": "existing_id", "name": "dry_000001.jpg", "appProperties": {"md5": normalized_md5, "phash": normalized_phash}},
     ]
 
     with patch("drive_add_images.normalize_image_file", return_value=normalized_obj), patch(
         "drive_add_images.compute_phash_from_image", return_value=normalized_phash
     ):
-        m.run(label="hello_kitty", input_path=img_path, dry_run=False, log_path=tmp_path / "log.csv")
+        m.run(label="dry_road", input_path=img_path, dry_run=False, log_path=tmp_path / "log.csv")
 
     mock_upload.assert_not_called()
     mock_append_log.assert_called()
@@ -339,13 +339,13 @@ def test_run_upload_new_file(
     mock_service: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Une image nouvelle est uploadée avec le bon nom (hk_000001.jpg par défaut)."""
+    """Une image nouvelle est uploadée avec le bon nom (dry_000001.jpg par défaut)."""
     from PIL import Image
     img_path = tmp_path / "new.png"
     Image.new("RGB", (5, 5), color=(10, 20, 30)).save(img_path)
 
     mock_service.return_value = MagicMock()
-    mock_folders.return_value = {"hello_kitty": "fid_hello", "fake_hello_kitty": "fid_fake", "sanrio_other": "fid_other"}
+    mock_folders.return_value = {"dry_road": "fid_hello", "wet_road": "fid_fake", "snowy_road": "fid_other"}
     mock_list.return_value = []
     mock_fetch_index.return_value = {}
     mock_upload.return_value = "new_file_id_123"
@@ -365,11 +365,11 @@ def test_run_upload_new_file(
     with patch("drive_add_images.normalize_image_file", return_value=normalized_obj), patch(
         "drive_add_images.compute_phash_from_image", return_value="ph"
     ):
-        m.run(label="hello_kitty", input_path=img_path, dry_run=False, log_path=tmp_path / "log.csv")
+        m.run(label="dry_road", input_path=img_path, dry_run=False, log_path=tmp_path / "log.csv")
 
     mock_upload.assert_called_once()
     call_kw = mock_upload.call_args
-    assert call_kw[0][2] == "hk_000001.jpg"  # drive_file_name
+    assert call_kw[0][2] == "dry_000001.jpg"  # drive_file_name
     assert call_kw[0][3] == normalized_bytes  # normalized_bytes
     assert call_kw[0][4] == "image/jpeg"  # normalized_mime
     mock_append_log.assert_called()
@@ -398,7 +398,7 @@ def test_run_invalid_label() -> None:
 def test_append_log_row_creates_file_with_headers(tmp_path: Path) -> None:
     """Premier appel crée le fichier avec en-têtes."""
     log_file = tmp_path / "log.csv"
-    m.append_log_row(log_file, "2025-01-01T12:00:00", "img.png", "JPEG", (128, 128), "hello_kitty", "uploaded", "", "fid1")
+    m.append_log_row(log_file, "2025-01-01T12:00:00", "img.png", "JPEG", (128, 128), "dry_road", "uploaded", "", "fid1")
     content = log_file.read_text(encoding="utf-8")
     assert "date,original_file,normalized_format,normalized_size,label,action,reason,drive_file_id" in content
     assert "img.png" in content

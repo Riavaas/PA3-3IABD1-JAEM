@@ -1,6 +1,6 @@
 ## PA3-3IABD1-JAEM
 
-Projet annuel Machine Learning — **classification d'images** (Hello Kitty / Fake Hello Kitty / Sanrio Other).
+Projet annuel Machine Learning — **classification d'images** (route sèche / route mouillée / route enneigée).
 
 ### Objectif
 
@@ -12,7 +12,8 @@ Construire un pipeline simple :
 Modèles visés :
 - **Modèle linéaire** (fait : testé sur datasets jouets `linear` et `xor`)
 - **MLP** (à venir : doit réussir le XOR là où le linéaire échoue)
-- **RBF / SVM** (à venir)
+- **RBF** : en cours 
+-  **SVM** (à venir)
 
 ### Arborescence (état actuel)
 
@@ -29,14 +30,22 @@ PA3-3IABD1-JAEM/
 │
 ├── datasets/                      # Données (ignorées par git, sauf toy/)
 │   ├── raw/                       # images brutes par classe
-│   │   ├── hello_kitty/
-│   │   ├── fake_hello_kitty/
-│   │   └── sanrio_other/
+│   │   ├── dry_road/
+│   │   ├── wet_road/
+│   │   └── snowy_road/
 │   ├── transformed/               # features prêtes pour le ML (rgb / nb / contours)
 │   ├── for_c/                     # features exportées au format binaire pour le C
 │   └── toy/                       # petits datasets de test (générés)
 │       ├── linear.csv             # 2 groupes séparables par une droite
 │       └── xor.csv                # 4 points en croix (non séparables)
+│
+├── built_datasets/                # variantes pré-construites (meta.json avec chemins relatifs)
+│   ├── rgb_raw/                   # dry_road=0, wet_road=1, snowy_road=2
+│   ├── rgb_norm/
+│   ├── grayscale_raw/
+│   ├── grayscale_norm/
+│   ├── contours_raw/
+│   └── contours_norm/
 │
 ├── preprocessing/                 # Prétraitement / construction des datasets
 │   ├── build_dataset.py           # images -> (X, y)
@@ -71,17 +80,13 @@ source .venv/bin/activate            # Windows : .venv\Scripts\activate
 python3 -m pip install -r requirements.txt
 ```
 
-> ⚠️ Un `.venv` n'est **pas transportable** d'un ordinateur à l'autre (il contient des chemins
-> en dur vers le Python qui l'a créé). Chacun crée le sien en local. Si tu récupères un projet
-> avec un `.venv` qui plante (`no such file .venv/bin/python3`), supprime-le et recrée-le :
+
 > ```bash
 > rm -rf .venv
 > python3 -m venv .venv
 > source .venv/bin/activate
 > python3 -m pip install -r requirements.txt
 > ```
-> Sur Mac, si `pip` est bloqué (« externally-managed-environment »), c'est que le venv n'est pas
-> vraiment actif : vérifie avec `which python3` (doit pointer vers `.venv/bin/python3`).
 
 ---
 
@@ -156,7 +161,7 @@ L'image est sauvegardée dans `plot_linear.png`.
 Le script `preprocessing/build_dataset.py` construit automatiquement le dataset utilisable pour l'entraînement.
 
 Ce qu'il fait :
-- (par défaut) télécharge les images depuis Google Drive (`dataset/hello_kitty`, `dataset/fake_hello_kitty`, `dataset/sanrio_other`)
+- (par défaut) télécharge les images depuis Google Drive (`dataset_routes/dry_road`, `dataset_routes/wet_road`, `dataset_routes/snowy_road`)
 - conserve une taille d'image unique (les images d'une autre taille sont ignorées avec un warning)
 - génère les features pour 3 variantes : `rgb`, `nb` (niveaux de gris), `contours`
 - exporte chaque variante en version `normalisee` et `non_normalisee`
@@ -179,9 +184,9 @@ Tu peux aussi injecter des sources locales :
 ```bash
 python3 preprocessing/build_dataset.py \
   --skip-drive \
-  --source-vrai /chemin/vers/hello_kitty \
-  --source-faux /chemin/vers/fake_hello_kitty \
-  --source-sanrio-other /chemin/vers/sanrio_other
+  --source-dry-road /chemin/vers/dry_road \
+  --source-wet-road /chemin/vers/wet_road \
+  --source-snowy-road /chemin/vers/snowy_road
 ```
 
 Emplacements de stockage :

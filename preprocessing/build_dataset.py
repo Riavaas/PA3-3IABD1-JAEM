@@ -14,8 +14,8 @@ from googleapiclient.http import MediaIoBaseDownload
 
 # https://www.youtube.com/watch?v=HvKpzGadlB4
 
-CLASSES = ["hello_kitty", "fake_hello_kitty", "sanrio_other"]
-LABELS = {"hello_kitty": 0, "fake_hello_kitty": 1, "sanrio_other": 2}
+CLASSES = ["dry_road", "wet_road", "snowy_road"]
+LABELS = {"dry_road": 0, "wet_road": 1, "snowy_road": 2}
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
@@ -59,14 +59,14 @@ def normaliser(img):
     return arr / 255.0
 
 
-def remplir_raw_depuis_sources(raw_dir, source_vrai, source_faux, source_sanrio_other):
+def remplir_raw_depuis_sources(raw_dir, source_dry, source_wet, source_snowy):
     """
     Copie les images locales dans datasets/raw (inspiré de la logique de filtrage image).
     """
     mapping = [
-        ("hello_kitty", source_vrai),
-        ("fake_hello_kitty", source_faux),
-        ("sanrio_other", source_sanrio_other),
+        ("dry_road", source_dry),
+        ("wet_road", source_wet),
+        ("snowy_road", source_snowy),
     ]
     for class_name, source in mapping:
         target = raw_dir / class_name
@@ -117,8 +117,21 @@ def find_folder(service, parent_id, folder_name):
 
 def list_drive_files(service, folder_id):
     q = f"'{folder_id}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false"
-    resp = service.files().list(q=q, spaces="drive", fields="files(id, name)").execute()
-    return resp.get("files", [])
+    files = []
+    page_token = None
+    while True:
+        resp = service.files().list(
+            q=q,
+            spaces="drive",
+            fields="nextPageToken, files(id, name)",
+            pageSize=1000,
+            pageToken=page_token,
+        ).execute()
+        files.extend(resp.get("files", []))
+        page_token = resp.get("nextPageToken")
+        if not page_token:
+            break
+    return files
 
 
 def download_drive_file(service, file_id, dst_path):
@@ -133,7 +146,7 @@ def download_drive_file(service, file_id, dst_path):
 
 def remplir_raw_depuis_drive(raw_dir, drive_root_folder_name, credentials_path, token_path):
     """
-    Télécharge depuis My Drive/{drive_root_folder_name}/{hello_kitty|fake_hello_kitty|sanrio_other}
+    Télécharge depuis My Drive/{drive_root_folder_name}/{dry_road|wet_road|snowy_road}
     vers datasets/raw.
     """
     service = get_drive_service(credentials_path, token_path)
@@ -177,11 +190,11 @@ def main():
     parser = argparse.ArgumentParser(description="Construit datasets depuis Google Drive: raw + transformed.")
     parser.add_argument("--raw-dir", default=str(project_root / "datasets" / "raw"))
     parser.add_argument("--output-dir", default=str(project_root / "datasets" / "transformed"))
-    parser.add_argument("--source-vrai", default="")
-    parser.add_argument("--source-faux", default="")
-    parser.add_argument("--source-sanrio-other", default="")
+    parser.add_argument("--source-dry-road", default="")
+    parser.add_argument("--source-wet-road", default="")
+    parser.add_argument("--source-snowy-road", default="")
     parser.add_argument("--skip-drive", action="store_true", help="Ne pas télécharger depuis Drive (mode local)")
-    parser.add_argument("--drive-root-folder-name", default="dataset")
+    parser.add_argument("--drive-root-folder-name", default="dataset_routes")
     parser.add_argument("--credentials", default=str(dataset_tools_dir / "credentials.json"))
     parser.add_argument("--token", default=str(dataset_tools_dir / "token.json"))
     args = parser.parse_args()
@@ -192,9 +205,9 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Optionnel 1: copier depuis dossiers locaux.
-    remplir_raw_depuis_sources(raw_dir, args.source_vrai, args.source_faux, args.source_sanrio_other)
+    remplir_raw_depuis_sources(raw_dir, args.source_dry_road, args.source_wet_road, args.source_snowy_road)
 
-    # Par défaut: télécharger depuis Google Drive (dataset/hello_kitty|fake_hello_kitty|sanrio_other).
+    # Par défaut: télécharger depuis Google Drive (dataset_routes/dry_road|wet_road|snowy_road).
     if not args.skip_drive:
         remplir_raw_depuis_drive(
             raw_dir,

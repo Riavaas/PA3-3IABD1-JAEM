@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script pour ajouter des images dans Google Drive (Mon Drive/dataset/{hello_kitty|fake_hello_kitty|sanrio_other}).
+Script pour ajouter des images dans Google Drive (Mon Drive/dataset_routes/{dry_road|wet_road|snowy_road}).
 Gestion des doublons (md5 + phash), renommage automatique, log CSV.
 Authentification OAuth 2.0 (credentials.json + token.json).
 """
@@ -41,9 +41,9 @@ DEFAULT_RESIZE = 128
 DEFAULT_JPEG_QUALITY = 90
 
 LABEL_TO_PREFIX = {
-    "hello_kitty": "hk",
-    "fake_hello_kitty": "fhk",
-    "sanrio_other": "sanrio",
+    "dry_road": "dry",
+    "wet_road": "wet",
+    "snowy_road": "snowy",
 }
 
 
@@ -266,10 +266,10 @@ def get_next_number_for_label(existing_names: list[str], label: str) -> int:
     détermine le prochain numéro à utiliser (format: prefix_NNNNNN.ext).
 
     :param existing_names: Noms de fichiers (ex: ["hk_000001.jpg", "hk_000003.png"]).
-    :param label: Clé du label (hello_kitty, fake_hello_kitty, sanrio_other).
+    :param label: Clé du label (dry_road, wet_road, snowy_road).
     :return: Prochain numéro (1-based, ex: 4).
     """
-    prefix = LABEL_TO_PREFIX.get(label, "sanrio")
+    prefix = LABEL_TO_PREFIX.get(label, "snowy")
     pattern = re.compile(rf"^{re.escape(prefix)}_(\d+)\.[a-zA-Z]+$", re.IGNORECASE)
     numbers = []
     for name in existing_names:
@@ -333,9 +333,9 @@ def find_or_create_folder(service: Any, parent_id: str, folder_name: str) -> str
     return folder["id"]
 
 
-def get_or_create_dataset_folders(service: Any, drive_root_folder_name: str = "dataset") -> dict[str, str]:
+def get_or_create_dataset_folders(service: Any, drive_root_folder_name: str = "dataset_routes") -> dict[str, str]:
     """
-    Retourne les ids des dossiers dataset/hello_kitty, dataset/fake_hello_kitty, dataset/sanrio_other.
+    Retourne les ids des dossiers dataset_routes/dry_road, dataset_routes/wet_road, dataset_routes/snowy_road.
     Crée l'arborescence sous "My Drive" si nécessaire.
     """
     # Racine "My Drive" = root
@@ -344,9 +344,9 @@ def get_or_create_dataset_folders(service: Any, drive_root_folder_name: str = "d
 
     dataset_id = find_or_create_folder(service, root_id, drive_root_folder_name)
     return {
-        "hello_kitty": find_or_create_folder(service, dataset_id, "hello_kitty"),
-        "fake_hello_kitty": find_or_create_folder(service, dataset_id, "fake_hello_kitty"),
-        "sanrio_other": find_or_create_folder(service, dataset_id, "sanrio_other"),
+        "dry_road": find_or_create_folder(service, dataset_id, "dry_road"),
+        "wet_road": find_or_create_folder(service, dataset_id, "wet_road"),
+        "snowy_road": find_or_create_folder(service, dataset_id, "snowy_road"),
     }
 
 
@@ -358,7 +358,7 @@ def list_files_in_folder(service: Any, folder_id: str) -> list[dict]:
 
 
 def fetch_index_from_drive(service: Any, folder_ids: dict[str, str]) -> dict:
-    """Récupère dataset_index.json depuis le premier dossier où il existe (ex: hello_kitty)."""
+    """Récupère dataset_index.json depuis le premier dossier où il existe (ex: dry_road)."""
     for label, fid in folder_ids.items():
         q = f"name='{INDEX_FILENAME}' and '{fid}' in parents and trashed=false"
         resp = service.files().list(q=q, spaces="drive", fields="files(id)").execute()
@@ -537,7 +537,7 @@ def get_dataset_counts(service: Any, folder_ids: dict[str, str]) -> dict[str, in
 def run(
     label: str,
     input_path: str | Path,
-    drive_root_folder_name: str = "dataset",
+    drive_root_folder_name: str = "dataset_routes",
     dry_run: bool = False,
     added_by: str = "",
     source: str = "",
@@ -676,7 +676,7 @@ def run(
 
     counts = get_dataset_counts(service, folders)
     print("Récap dataset (Drive) :")
-    for k in ("hello_kitty", "fake_hello_kitty", "sanrio_other"):
+    for k in ("dry_road", "wet_road", "snowy_road"):
         v = counts.get(k, 0)
         if v == -1:
             print(f"  - {k}: (indisponible)")
@@ -691,11 +691,11 @@ def run(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Ajoute des images dans Google Drive (dataset/hello_kitty|fake_hello_kitty|sanrio_other)."
+        description="Ajoute des images dans Google Drive (dataset_routes/dry_road|wet_road|snowy_road)."
     )
-    parser.add_argument("--label", required=True, choices=list(LABEL_TO_PREFIX), help="Classe: hello_kitty | fake_hello_kitty | sanrio_other")
+    parser.add_argument("--label", required=True, choices=list(LABEL_TO_PREFIX), help="Classe: dry_road | wet_road | snowy_road")
     parser.add_argument("--input", required=True, help="Fichier image ou dossier contenant des images")
-    parser.add_argument("--drive-root-folder-name", default="dataset", help="Nom du dossier racine sous My Drive (défaut: dataset)")
+    parser.add_argument("--drive-root-folder-name", default="dataset_routes", help="Nom du dossier racine sous My Drive (défaut: dataset_routes)")
     parser.add_argument("--dry-run", action="store_true", help="Afficher les actions sans upload")
     parser.add_argument("--added-by", default="", help="Identifiant de la personne qui ajoute (stocké dans appProperties)")
     parser.add_argument("--source", default="", help="Source optionnelle (url/texte)")
