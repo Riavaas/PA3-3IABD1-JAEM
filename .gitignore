@@ -1,0 +1,61 @@
+# =========================
+# 🔐 Google Drive (IMPORTANT)
+# =========================
+token.json
+credentials.json
+dataset_tools/drive_add_log.csv
+dataset_tools/drive_add_log_v2.csv
+
+# =========================
+# 🖼️ Dataset (lourd)
+# =========================
+datasets/raw/
+datasets/processed/
+datasets/splits/
+datasets/transformed/
+
+# =========================
+# 🐍 Python
+# =========================
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+
+# =========================
+# 🛠️ Binaires compilés (lib C) — à recompiler localement, jamais commit
+# =========================
+*.so
+*.dll
+*.dylib
+*.o
+*.obj
+
+# =========================
+# 🧪 Tests / cache
+# =========================
+.pytest_cache/
+.coverage
+
+# =========================
+# 💻 OS / IDE
+# =========================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# =========================
+# 🔒 Secrets / logs / archives
+# =========================
+.env
+.env.*
+*.log
+*.zip
+dataset_images/
+
+# =========================
+# 📁 Dossier d'analyse local (snapshot fourni par l'utilisateur)
+# =========================
+ANCIEN/
