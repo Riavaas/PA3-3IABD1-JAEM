@@ -1,5 +1,6 @@
 import argparse
 import io
+import struct
 import shutil
 from pathlib import Path
 
@@ -11,6 +12,8 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
+
+import random
 
 # https://www.youtube.com/watch?v=HvKpzGadlB4
 
@@ -174,12 +177,47 @@ def remplir_raw_depuis_drive(raw_dir, drive_root_folder_name, credentials_path, 
         print(f"[Drive] {class_name}: {downloaded} fichier(s) téléchargé(s)")
 
 
-def sauver_variant(base_dir, variante, normalisee, X, y):
+def sauver_X_f32bin(chemin, X):
+    """Format C: int32 n, int32 d, puis float32 (n*d, row-major)."""
+    arr = np.asarray(X, dtype=np.float32)
+    n, d = arr.shape
+    with open(chemin, "wb") as f:
+        f.write(struct.pack("i", n))
+        f.write(struct.pack("i", d))
+        f.write(arr.tobytes())
+
+
+def sauver_y_i32bin(chemin, y):
+    """Format C: int32 n, puis int32 (n labels)."""
+    arr = np.asarray(y, dtype=np.int32)
+    n = len(arr)
+    with open(chemin, "wb") as f:
+        f.write(struct.pack("i", n))
+        f.write(arr.tobytes())
+
+
+def sauver_variant(base_dir, variante, normalisee, X, y, train_indices, test_indices):
     sous_dossier = "normalisee" if normalisee else "non_normalisee"
     out_dir = base_dir / variante / sous_dossier
     out_dir.mkdir(parents=True, exist_ok=True)
-    np.save(out_dir / "X.npy", np.asarray(X, dtype=np.float32))
-    np.save(out_dir / "y.npy", np.asarray(y, dtype=np.int64))
+    X_train = [X[i] for i in train_indices]
+    X_test = [X[i] for i in test_indices]
+    y_train = [y[i] for i in train_indices]
+    y_test = [y[i] for i in test_indices]
+    X_train_arr = np.asarray(X_train, dtype=np.float32)
+    X_test_arr = np.asarray(X_test, dtype=np.float32)
+    y_train_arr = np.asarray(y_train, dtype=np.int64)
+    y_test_arr = np.asarray(y_test, dtype=np.int64)
+
+    np.save(out_dir / "X_train.npy", X_train_arr)
+    np.save(out_dir / "y_train.npy", y_train_arr)
+    np.save(out_dir / "X_test.npy", X_test_arr)
+    np.save(out_dir / "y_test.npy", y_test_arr)
+
+    sauver_X_f32bin(out_dir / "X_train.f32bin", X_train_arr)
+    sauver_y_i32bin(out_dir / "y_train.i32bin", y_train_arr)
+    sauver_X_f32bin(out_dir / "X_test.f32bin", X_test_arr)
+    sauver_y_i32bin(out_dir / "y_test.i32bin", y_test_arr)
 
 
 def main():
@@ -226,11 +264,13 @@ def main():
 
     nb_par_classe = {c: 0 for c in CLASSES}
     rgb_shape_reference = None
+    nb_images_traitees = 0
 
     for classe in CLASSES:
         dossier_classe = raw_dir / classe
         if not dossier_classe.exists():
             continue
+        print(f"la c'est : {classe}")
         for f in sorted(dossier_classe.iterdir()):
             if not (f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS):
                 continue
@@ -262,25 +302,43 @@ def main():
             X_contours_norm.append(normaliser(img_contours).reshape(-1))
             y.append(LABELS[classe])
             nb_par_classe[classe] += 1
+            nb_images_traitees += 1
+            if nb_images_traitees % 100 == 0:
+                print(f"  {nb_images_traitees} ok")
 
-    sauver_variant(output_dir, "rgb", False, X_rgb_raw, y)
-    sauver_variant(output_dir, "rgb", True, X_rgb_norm, y)
-    sauver_variant(output_dir, "nb", False, X_nb_raw, y)
-    sauver_variant(output_dir, "nb", True, X_nb_norm, y)
-    sauver_variant(output_dir, "contours", False, X_contours_raw, y)
-    sauver_variant(output_dir, "contours", True, X_contours_norm, y)
+    print(f" {nb_images_traitees} ok")
+    indices = list(range(len(y)))
+    random.seed(67)
+    random.shuffle(indices)
+    split = int(len(indices) * 0.8)
+    train_indices = indices[:split]
+    test_indices = indices[split:]
+    print(f"Split : {len(train_indices)} / {len(test_indices)}")
 
-    print("Dataset construit.")
-    print(f"Sortie: {output_dir}")
-    print(f"Total images: {len(y)}")
-    print(f"Par classe: {nb_par_classe}")
+    print(" rgb non n")
+    sauver_variant(output_dir, "rgb", False, X_rgb_raw, y, train_indices, test_indices)
+    print(" rgb n")
+    sauver_variant(output_dir, "rgb", True, X_rgb_norm, y, train_indices, test_indices)
+    print(" nb non  n")
+    sauver_variant(output_dir, "nb", False, X_nb_raw, y, train_indices, test_indices)
+    print(" nb n")
+    sauver_variant(output_dir, "nb", True, X_nb_norm, y, train_indices, test_indices)
+    print(" contours non n")
+    sauver_variant(output_dir, "contours", False, X_contours_raw, y, train_indices, test_indices)
+    print(" contours n")
+    sauver_variant(output_dir, "contours", True, X_contours_norm, y, train_indices, test_indices)
+
+    print(f" {output_dir}")
+    print(f" {len(y)}")
+    print(f" {nb_par_classe}")
     if rgb_shape_reference is not None:
-        print(f"Taille image conservée: {rgb_shape_reference}")
+        print(f" {rgb_shape_reference}")
     if len(y) > 0:
-        print(f"Taille vecteur RGB: {len(X_rgb_raw[0])}")
-        print(f"Taille vecteur NB/contours: {len(X_nb_raw[0])}")
+        print(f" {len(X_rgb_raw[0])}")
+        print(f" {len(X_nb_raw[0])}")
 
 
 if __name__ == "__main__":
     main()
 
+#  --skip-drive si deja dl dans raw 
