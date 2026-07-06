@@ -266,11 +266,11 @@ def main():
     rgb_shape_reference = None
     nb_images_traitees = 0
 
+    print("la on commence a traiter les images")
     for classe in CLASSES:
         dossier_classe = raw_dir / classe
         if not dossier_classe.exists():
             continue
-        print(f"la c'est : {classe}")
         for f in sorted(dossier_classe.iterdir()):
             if not (f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS):
                 continue
@@ -313,29 +313,17 @@ def main():
     split = int(len(indices) * 0.8)
     train_indices = indices[:split]
     test_indices = indices[split:]
-    print(f"Split : {len(train_indices)} / {len(test_indices)}")
 
-    print(" rgb non n")
+    print("Sauvegarde des variantes (npy + binaire C)...")
     sauver_variant(output_dir, "rgb", False, X_rgb_raw, y, train_indices, test_indices)
-    print(" rgb n")
     sauver_variant(output_dir, "rgb", True, X_rgb_norm, y, train_indices, test_indices)
-    print(" nb non  n")
     sauver_variant(output_dir, "nb", False, X_nb_raw, y, train_indices, test_indices)
-    print(" nb n")
     sauver_variant(output_dir, "nb", True, X_nb_norm, y, train_indices, test_indices)
-    print(" contours non n")
     sauver_variant(output_dir, "contours", False, X_contours_raw, y, train_indices, test_indices)
-    print(" contours n")
     sauver_variant(output_dir, "contours", True, X_contours_norm, y, train_indices, test_indices)
 
-    print(f" {output_dir}")
-    print(f" {len(y)}")
-    print(f" {nb_par_classe}")
-    if rgb_shape_reference is not None:
-        print(f" {rgb_shape_reference}")
-    if len(y) > 0:
-        print(f" {len(X_rgb_raw[0])}")
-        print(f" {len(X_nb_raw[0])}")
+    print(f"Split train/test: {len(train_indices)} / {len(test_indices)}")
+
 
 
 if __name__ == "__main__":

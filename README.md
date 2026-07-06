@@ -34,7 +34,6 @@ PA3-3IABD1-JAEM/
 │   │   ├── wet_road/
 │   │   └── snowy_road/
 │   ├── transformed/               # features prêtes pour le ML (rgb / nb / contours)
-│   ├── for_c/                     # features exportées au format binaire pour le C
 │   └── toy/                       # petits datasets de test (générés)
 │       ├── linear.csv             # 2 groupes séparables par une droite
 │       └── xor.csv                # 4 points en croix (non séparables)
@@ -48,8 +47,7 @@ PA3-3IABD1-JAEM/
 │   └── contours_norm/
 │
 ├── preprocessing/                 # Prétraitement / construction des datasets
-│   ├── build_dataset.py           # images -> (X, y)
-│   ├── export_for_c_nb_normalisee.py  # X,y -> binaire lisible par le C
+│   ├── build_dataset.py           # images -> (X, y) train/test + export binaire C
 │   ├── make_toy_dataset.py        # génère datasets/toy/linear.csv et xor.csv
 │   └── utils.py                   # helpers
 │
@@ -165,21 +163,32 @@ Ce qu'il fait :
 - conserve une taille d'image unique (les images d'une autre taille sont ignorées avec un warning)
 - génère les features pour 3 variantes : `rgb`, `nb` (niveaux de gris), `contours`
 - exporte chaque variante en version `normalisee` et `non_normalisee`
-- sauvegarde `X.npy` (features) et `y.npy` (labels)
+- fait un split train/test **80/20** (reproductible, `random.seed(67)`)
+- sauvegarde **Python** (`.npy`) **et** **C** (`.f32bin` / `.i32bin`) dans le même dossier
 
-Commande par défaut (avec téléchargement Drive) :
+#### Commandes
+
+Activer l'environnement (à faire une fois par session) :
 
 ```bash
-python3 preprocessing/build_dataset.py
+cd PA3-3IABD1-JAEM
+source .venv/bin/activate
+python3 -m pip install -r requirements.txt
 ```
 
-Mode local (sans téléchargement Drive) :
+Construire le dataset (recommandé si les images sont déjà dans `datasets/raw/`) :
 
 ```bash
 python3 preprocessing/build_dataset.py --skip-drive
 ```
 
-Tu peux aussi injecter des sources locales :
+Construire avec téléchargement Google Drive (plus long) :
+
+```bash
+python3 preprocessing/build_dataset.py
+```
+
+Injecter des sources locales en plus :
 
 ```bash
 python3 preprocessing/build_dataset.py \
@@ -189,14 +198,45 @@ python3 preprocessing/build_dataset.py \
   --source-snowy-road /chemin/vers/snowy_road
 ```
 
-Emplacements de stockage :
+#### Fichiers générés
+
+Emplacements :
 - `datasets/raw/` : images brutes par classe
 - `datasets/transformed/` : datasets prêts pour ML
-  - `rgb/normalisee/X.npy`, `rgb/normalisee/y.npy`
-  - `rgb/non_normalisee/X.npy`, `rgb/non_normalisee/y.npy`
-  - `nb/normalisee/...`, `nb/non_normalisee/...`
-  - `contours/normalisee/...`, `contours/non_normalisee/...`
+
+Dans chaque dossier (`rgb/nb/contours` × `normalisee/non_normalisee`) :
+
+| Fichier | Usage |
+|---------|--------|
+| `X_train.npy`, `y_train.npy` | Python (notebook) |
+| `X_test.npy`, `y_test.npy` | Python (évaluation) |
+| `X_train.f32bin`, `y_train.i32bin` | C (entraînement) |
+| `X_test.f32bin`, `y_test.i32bin` | C (test) |
+
+Labels : `dry_road=0`, `wet_road=1`, `snowy_road=2`.
+
+> Les dossiers `datasets/raw/` et `datasets/transformed/` sont **ignorés par Git** (fichiers trop lourds, >100 Mo par fichier). Chaque membre du groupe régénère le dataset en local avec `build_dataset.py`.
+
+#### Entraîner le modèle linéaire sur les images (C)
+
+Compilation :
+
+```bash
+gcc models/linear_model.c -o models/linear_model -lm
+```
+
+Entraînement sur la variante NB normalisée (exemple) :
+
+```bash
+./models/linear_model \
+  datasets/transformed/nb/normalisee/X_train.f32bin \
+  datasets/transformed/nb/normalisee/y_train.i32bin
+```
+
+Arguments optionnels : `./models/linear_model <X.f32bin> <y.i32bin> [epochs] [lr]`
+(par défaut : 30 epochs, lr = 0.1).
 
 Remarques :
-- `.npy` est un format binaire NumPy.
-- Les dossiers `datasets/` (sauf `toy/`) sont ignorés par Git (données volumineuses).
+- `.npy` = format binaire NumPy (Python)
+- `.f32bin` / `.i32bin` = format binaire lu par `models/linear_model.c`
+- pas besoin d'un script d'export séparé : tout est généré par `build_dataset.py`
