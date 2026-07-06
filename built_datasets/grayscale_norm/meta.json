@@ -1,0 +1,18 @@
+{
+  "variant": "grayscale_norm",
+  "color_mode": "grayscale",
+  "normalized": true,
+  "image_size": 64,
+  "num_samples": 3,
+  "num_features": 4096,
+  "class_to_label": {
+    "dry_road": 0,
+    "wet_road": 1,
+    "snowy_road": 2
+  },
+  "source_paths": [
+    "datasets/raw/dry_road/dry_test.jpeg",
+    "datasets/raw/wet_road/wet_test.jpeg",
+    "datasets/raw/snowy_road/snowy_test.jpeg"
+  ]
+}

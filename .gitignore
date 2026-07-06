@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # =========================
 # 🔐 Google Drive (IMPORTANT)
 # =========================
@@ -59,3 +60,61 @@ dataset_images/
 # 📁 Dossier d'analyse local (snapshot fourni par l'utilisateur)
 # =========================
 ANCIEN/
+=======
+# =========================
+# 🔐 Google Drive (IMPORTANT)
+# =========================
+token.json
+credentials.json
+dataset_tools/token*.json
+dataset_tools/drive_add_log.csv
+dataset_tools/drive_add_log_v2.csv
+
+# =========================
+# 🖼️ Dataset (lourd / généré)
+# =========================
+datasets/raw/
+datasets/processed/
+datasets/splits/
+datasets/transformed/
+datasets/for_c/
+built_datasets/**/X.npy
+built_datasets/**/y.npy
+# NB: datasets/toy/ N'EST PAS ignoré (linear.csv et xor.csv sont petits et utiles au groupe)
+
+# =========================
+# 📊 Sorties générées (graphes, poids, binaires C)
+# =========================
+plot_*.png
+models/poids.txt
+models/linear_csv
+models/linear_model
+models/linear_model_csv
+rbf
+*.o
+*.out
+*.exe
+
+# =========================
+# 🐍 Python
+# =========================
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+
+# =========================
+# 🧪 Tests / cache
+# =========================
+.pytest_cache/
+.coverage
+
+# =========================
+# 💻 OS / IDE
+# =========================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+>>>>>>> 3df3e7d42797cbf871a211d3abbd1e79b9b1a6fd
