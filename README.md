@@ -217,16 +217,28 @@ Compilation :
 gcc models/linear_model.c -o models/linear_model -lm
 ```
 
-Entraînement sur la variante NB normalisée (exemple) :
+Entraînement sur la variante NB normalisée (exemple, chemins par défaut) :
+
+```bash
+./models/linear_model
+```
+
+Avec chemins explicites (train + test) :
 
 ```bash
 ./models/linear_model \
   datasets/transformed/nb/normalisee/X_train.f32bin \
-  datasets/transformed/nb/normalisee/y_train.i32bin
+  datasets/transformed/nb/normalisee/y_train.i32bin \
+  datasets/transformed/nb/normalisee/X_test.f32bin \
+  datasets/transformed/nb/normalisee/y_test.i32bin
 ```
 
-Arguments optionnels : `./models/linear_model <X.f32bin> <y.i32bin> [epochs] [lr]`
-(par défaut : 30 epochs, lr = 0.1).
+Arguments optionnels :
+`./models/linear_model <X_train> <y_train> <X_test> <y_test> [epochs] [lr]`
+(par défaut : chemins NB normalisée ci-dessus, 30 epochs, lr = 0.1).
+
+Le split train/test est fait en Python (`build_dataset.py`) ; le C entraîne sur le train
+et affiche l'accuracy train (par epoch) puis train + test en fin d'exécution.
 
 Remarques :
 - `.npy` = format binaire NumPy (Python)
