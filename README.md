@@ -38,14 +38,6 @@ PA3-3IABD1-JAEM/
 │       ├── linear.csv             # 2 groupes séparables par une droite
 │       └── xor.csv                # 4 points en croix (non séparables)
 │
-├── built_datasets/                # variantes pré-construites (meta.json avec chemins relatifs)
-│   ├── rgb_raw/                   # dry_road=0, wet_road=1, snowy_road=2
-│   ├── rgb_norm/
-│   ├── grayscale_raw/
-│   ├── grayscale_norm/
-│   ├── contours_raw/
-│   └── contours_norm/
-│
 ├── preprocessing/                 # Prétraitement / construction des datasets
 │   ├── build_dataset.py           # images -> (X, y) train/test + export binaire C
 │   ├── make_toy_dataset.py        # génère datasets/toy/linear.csv et xor.csv
