@@ -1,6 +1,7 @@
 # Python scripts (generate_datasets, plot, tests)
 numpy>=1.24.0
 matplotlib>=3.7.0
+pandas>=2.0.0 # Jade : C'est pour le modèle linéaire (Perceptron)
 
 # dataset_tools (Google Drive + images)
 google-api-python-client>=2.100.0
