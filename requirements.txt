@@ -11,6 +11,10 @@ imagehash>=4.3.1
 imageio>=2.31.0
 tqdm>=4.66.0
 
+# Notebook (demo_lineaire_k3.ipynb)
+notebook>=7.0.0
+ipykernel>=6.25.0
+
 # Tests
 pytest>=7.4.0
 pytest-cov>=4.1.0

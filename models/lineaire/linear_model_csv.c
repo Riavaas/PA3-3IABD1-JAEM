@@ -14,7 +14,7 @@
  *   - sinon                      -> on predit la classe 0
  * On ajuste w1, w2, b a chaque fois qu'on se trompe (regle du perceptron).
  *
- * A la fin, on ECRIT les poids trouves dans "models/poids.txt"
+ * A la fin, on ECRIT les poids trouves dans "models/lineaire/poids.txt"
  * pour que le script Python puisse tracer la droite.
  */
 
@@ -83,14 +83,14 @@ int main(int argc, char *argv[]) {
     printf("Droite trouvee : %.3f*x1 + %.3f*x2 + %.3f = 0\n", w1, w2, b);
 
     /* --- 3) On ecrit les poids dans un fichier (pour le graphe Python) --- */
-    FILE *fp = fopen("models/poids.txt", "w");
+    FILE *fp = fopen("models/lineaire/poids.txt", "w");
     if (!fp) {
-        perror("models/poids.txt");
+        perror("models/lineaire/poids.txt");
         return 1;
     }
     fprintf(fp, "%f %f %f\n", w1, w2, b);   // une ligne : w1 w2 b
     fclose(fp);
-    printf("Poids ecrits dans models/poids.txt\n");
+    printf("Poids ecrits dans models/lineaire/poids.txt\n");
 
     return 0;
 }

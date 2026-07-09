@@ -21,14 +21,22 @@ datasets/for_c/
 # 📊 Sorties générées (graphes, poids, binaires C)
 # =========================
 plot_*.png
-models/poids.txt
-models/linear_csv
-models/linear_model
-models/linear_model_csv
+models/lineaire/poids.txt
+models/lineaire/linear_csv
+models/lineaire/linear_model
+models/lineaire/linear_model_csv
 rbf
 *.o
 *.out
 *.exe
+*.so
+*.dylib
+*.a
+
+# =========================
+# 📓 Jupyter
+# =========================
+.ipynb_checkpoints/
 
 # =========================
 # 🐍 Python

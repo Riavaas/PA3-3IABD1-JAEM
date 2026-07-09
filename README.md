@@ -44,10 +44,13 @@ PA3-3IABD1-JAEM/
 │   └── utils.py                   # helpers
 │
 ├── models/                        # Implémentations des modèles (en C)
-│   ├── linear_model.c             # classifieur linéaire multi-classes (images, format binaire)
-│   ├── linear_model_csv.c         # classifieur linéaire 2 classes (lit un CSV) + écrit poids.txt
-│   ├── linear_modele_droite.c     # régression linéaire (exercice perso, hors sujet projet)
-│   └── poids.txt                  # GÉNÉRÉ : poids w1 w2 b de la dernière exécution
+│   └── lineaire/                  # modèles linéaires + fichiers liés
+│       ├── linear_model.c         # perceptron multi-classes (images, format binaire)
+│       ├── linear_model_csv.c     # perceptron 2 classes (lit un CSV) + écrit poids.txt
+│       ├── linear_modele_droite.c # régression linéaire (exercice perso, hors sujet projet)
+│       ├── notebook_linear.ipynb  # notebook : lance le C (images) et trace les graphes
+│       ├── poids.txt              # GÉNÉRÉ : poids w1 w2 b de la dernière exécution
+│       └── test_points.txt
 │
 ├── visualization/                 # Scripts qui produisent des graphes
 │   ├── plot_linear.py             # points + droite de décision (lit poids.txt)
@@ -59,7 +62,7 @@ PA3-3IABD1-JAEM/
     └── train_linear.py
 ```
 
-> Remarque : les fichiers compilés en C (`models/linear_model_csv`, etc.) et `models/poids.txt`
+> Remarque : les fichiers compilés en C (`models/lineaire/linear_model_csv`, etc.) et `models/lineaire/poids.txt`
 > sont régénérés ; pas besoin de les versionner.
 
 ### Installation
@@ -102,31 +105,31 @@ Contenu attendu :
 
 #### 2) Entraîner le modèle linéaire (en C)
 
-`models/linear_model_csv.c` est un perceptron à 2 classes. Il lit un CSV, s'entraîne, affiche
-l'accuracy par epoch, puis **écrit les poids `w1 w2 b` dans `models/poids.txt`** (pour le graphe).
+`models/lineaire/linear_model_csv.c` est un perceptron à 2 classes. Il lit un CSV, s'entraîne, affiche
+l'accuracy par epoch, puis **écrit les poids `w1 w2 b` dans `models/lineaire/poids.txt`** (pour le graphe).
 
 Compilation (une fois) :
 
 ```bash
-gcc models/linear_model_csv.c -o models/linear_model_csv
+gcc models/lineaire/linear_model_csv.c -o models/lineaire/linear_model_csv
 ```
 
 Entraînement :
 
 ```bash
 # Cas séparable : doit converger vers accuracy = 1.00
-./models/linear_model_csv datasets/toy/linear.csv
+./models/lineaire/linear_model_csv datasets/toy/linear.csv
 
 # Cas XOR : reste bloqué à accuracy = 0.50 (échec attendu)
-./models/linear_model_csv datasets/toy/xor.csv
+./models/lineaire/linear_model_csv datasets/toy/xor.csv
 ```
 
-Arguments optionnels : `./models/linear_model_csv <fichier.csv> [epochs] [lr]`
+Arguments optionnels : `./models/lineaire/linear_model_csv <fichier.csv> [epochs] [lr]`
 (par défaut : 20 epochs, lr = 0.1).
 
 #### 3) Tracer le graphe (points + droite de décision)
 
-`visualization/plot_linear.py` lit les points (CSV) **et** les poids (`models/poids.txt`),
+`visualization/plot_linear.py` lit les points (CSV) **et** les poids (`models/lineaire/poids.txt`),
 puis dessine les points colorés par classe et la droite de décision.
 
 ```bash
@@ -214,21 +217,66 @@ Labels : `dry_road=0`, `wet_road=1`, `snowy_road=2`.
 Compilation :
 
 ```bash
-gcc models/linear_model.c -o models/linear_model -lm
+gcc models/lineaire/linear_model.c -o models/lineaire/linear_model -lm
 ```
 
-Entraînement sur la variante NB normalisée (exemple) :
+Entraînement sur la variante NB normalisée (exemple, chemins par défaut) :
 
 ```bash
-./models/linear_model \
-  datasets/transformed/nb/normalisee/X_train.f32bin \
-  datasets/transformed/nb/normalisee/y_train.i32bin
+./models/lineaire/linear_model
 ```
 
-Arguments optionnels : `./models/linear_model <X.f32bin> <y.i32bin> [epochs] [lr]`
-(par défaut : 30 epochs, lr = 0.1).
+Avec chemins explicites (train + test) :
+
+```bash
+./models/lineaire/linear_model \
+  datasets/transformed/nb/normalisee/X_train.f32bin \
+  datasets/transformed/nb/normalisee/y_train.i32bin \
+  datasets/transformed/nb/normalisee/X_test.f32bin \
+  datasets/transformed/nb/normalisee/y_test.i32bin
+```
+
+Arguments optionnels :
+`./models/lineaire/linear_model <X_train> <y_train> <X_test> <y_test> [epochs] [lr]`
+(par défaut : chemins NB normalisée ci-dessus, 30 epochs, lr = 0.1).
+
+Le split train/test est fait en Python (`build_dataset.py`) ; le C entraîne sur le train
+et affiche à chaque epoch une ligne `epoch <e> train <acc> test <acc>`, puis une matrice
+de confusion 3×3 sur le test (format lisible par le notebook).
 
 Remarques :
 - `.npy` = format binaire NumPy (Python)
-- `.f32bin` / `.i32bin` = format binaire lu par `models/linear_model.c`
+- `.f32bin` / `.i32bin` = format binaire lu par `models/lineaire/linear_model.c`
 - pas besoin d'un script d'export séparé : tout est généré par `build_dataset.py`
+
+#### Notebook interactif (entraîner + visualiser facilement)
+
+`models/lineaire/notebook_linear.ipynb` sert à lancer le modèle linéaire (images, K=3)
+et à afficher les résultats. Il ne calcule rien lui-même : il compile et exécute
+`linear_model.c`, récupère sa sortie et trace les graphes avec Matplotlib.
+
+Prérequis : dataset construit (`build_dataset.py`) et `gcc` disponible. Lancer Jupyter
+puis ouvrir le notebook :
+
+```bash
+source .venv/bin/activate
+python3 -m pip install notebook   # si Jupyter n'est pas déjà installé
+jupyter notebook models/lineaire/notebook_linear.ipynb
+```
+
+Variables à changer (cellule 1, en haut) :
+
+| Variable | Rôle | Valeurs |
+|----------|------|---------|
+| `variante` | type de features | `"rgb"`, `"nb"`, `"contours"` |
+| `normalisation` | pixels bruts ou 0–1 | `"normalisee"`, `"non_normalisee"` |
+| `epochs` | nombre de passages sur le train | ex. `30` |
+| `lr` | vitesse d'apprentissage | ex. `0.1` |
+
+Ce qu'il faut regarder :
+- **Courbe train vs test** : si le train monte et que le test stagne, c'est du **surapprentissage**.
+- **Matrice de confusion (test)** : montre quelles classes de routes se confondent.
+- **Bar chart des 6 variantes** : compare l'accuracy de test finale.
+
+Résultat attendu : accuracy de test autour de **0.40**, à peine au-dessus du hasard (~0.33 pour
+3 classes) → modèle linéaire trop faible pour ces images, ce qui justifie de passer au MLP.
