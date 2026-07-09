@@ -62,8 +62,7 @@ PA3-3IABD1-JAEM/
     └── train_linear.py
 ```
 
-> Remarque : les fichiers compilés en C (`models/lineaire/linear_model_csv`, etc.) et `models/lineaire/poids.txt`
-> sont régénérés ; pas besoin de les versionner.
+
 
 ### Installation
 
@@ -137,8 +136,8 @@ python3 visualization/plot_linear.py datasets/toy/linear.csv
 python3 visualization/plot_linear.py datasets/toy/xor.csv
 ```
 
-> ⚠️ Ordre important : `poids.txt` est réécrit à chaque exécution du C. Il faut donc lancer
-> le programme C **puis** le script Python **sur le même CSV, à la suite**, sinon on trace
+> Ordre important : `poids.txt` est réécrit à chaque exécution du C. Il faut donc lancer
+> le programme C puis le script Python sur le même CSV, à la suite, sinon on trace
 > les points d'un dataset avec la droite d'un autre.
 
 Résultat attendu :
