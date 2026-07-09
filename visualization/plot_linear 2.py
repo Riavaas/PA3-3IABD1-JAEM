@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 # 1) Quels fichiers lire ? (donnes en argument, sinon valeurs par defaut)
 chemin_csv = sys.argv[1] if len(sys.argv) >= 2 else "datasets/toy/linear.csv"
-chemin_poids = sys.argv[2] if len(sys.argv) >= 3 else "models/poids.txt"
+chemin_poids = sys.argv[2] if len(sys.argv) >= 3 else "models/lineaire/poids.txt"
 
 # 2) Lecture des points du CSV.
 #    On saute la 1ere ligne (l'en-tete x1,x2,label) avec skiprows=1.

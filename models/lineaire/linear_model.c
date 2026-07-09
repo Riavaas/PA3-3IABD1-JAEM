@@ -127,6 +127,26 @@ static float accuracy(const float *W, const float *b, const float *X, const int 
     return (float)correct / (float)n;
 }
 
+static void confusion_test(const float *W, const float *b, const float *X, const int *y, int n, int d, int conf[K_CLASSES][K_CLASSES]) {
+    for (int a = 0; a < K_CLASSES; a++) {
+        for (int p = 0; p < K_CLASSES; p++) {
+            conf[a][p] = 0;
+        }
+    }
+    for (int i = 0; i < n; i++) {
+        const float *xi = X + (size_t)i * (size_t)d;
+        float s[K_CLASSES];
+        for (int k = 0; k < K_CLASSES; k++) {
+            s[k] = dot(W + (size_t)k * (size_t)d, xi, d) + b[k];
+        }
+        int pred = argmax3(s);
+        int yi = y[i];
+        if (yi >= 0 && yi < K_CLASSES && pred >= 0 && pred < K_CLASSES) {
+            conf[yi][pred] += 1;
+        }
+    }
+}
+
 int main(int argc, char *argv[]) {
     // Par défaut : variante NB normalisée (d=4096).
     const char *x_train_path = "datasets/transformed/nb/normalisee/X_train.f32bin";
@@ -199,14 +219,19 @@ int main(int argc, char *argv[]) {
             }
         }
         float acc_train = accuracy(W, b, X_train, y_train, n_train, d);
-        printf("Epoch %d/%d: updates=%d, train_acc=%.3f\n", e + 1, epochs, updates, acc_train);
+        float acc_test = accuracy(W, b, X_test, y_test, n_test, d);
+        printf("epoch %d train %.3f test %.3f\n", e + 1, acc_train, acc_test);
         if (updates == 0) {
             break;
         }
     }
 
-    printf("Accuracy finale (train): %.3f\n", accuracy(W, b, X_train, y_train, n_train, d));
-    printf("Accuracy finale (test) : %.3f\n", accuracy(W, b, X_test, y_test, n_test, d));
+    int conf[K_CLASSES][K_CLASSES];
+    confusion_test(W, b, X_test, y_test, n_test, d, conf);
+    printf("confusion\n");
+    for (int a = 0; a < K_CLASSES; a++) {
+        printf("%d %d %d\n", conf[a][0], conf[a][1], conf[a][2]);
+    }
 
     free(W);
     free(X_train);
