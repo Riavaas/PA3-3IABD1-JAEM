@@ -88,13 +88,19 @@ models/lineaire/poids.txt
 models/lineaire/linear_csv
 models/lineaire/linear_model
 models/lineaire/linear_model_csv
-rbf
+models/rbf/rbf
+models/rbf/rbf_simple
 *.o
 *.out
 *.exe
 *.so
 *.dylib
 *.a
+
+# =========================
+# 📚 Librairie Eigen (headers only, ~3000 fichiers, chacun la télécharge)
+# =========================
+models/rbf/eigen-5.0.0/
 
 # =========================
 # 📓 Jupyter

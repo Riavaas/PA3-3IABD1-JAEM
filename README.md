@@ -12,7 +12,7 @@ Construire un pipeline simple :
 Modèles visés :
 - **Modèle linéaire** (fait : testé sur datasets jouets `linear` et `xor`)
 - **MLP** (à venir : doit réussir le XOR là où le linéaire échoue)
-- **RBF** : en cours 
+- **RBF** (fait : version naïve validée sur points jouets + version kmeans sur les images)
 -  **SVM** (à venir)
 
 ### Arborescence (état actuel)
@@ -51,6 +51,12 @@ PA3-3IABD1-JAEM/
 │       ├── notebook_linear.ipynb  # notebook : lance le C (images) et trace les graphes
 │       ├── poids.txt              # GÉNÉRÉ : poids w1 w2 b de la dernière exécution
 │       └── test_points.txt
+│
+├── models/rbf/                    # RBF Network (C++)
+│   ├── rbf_simple.cpp             # version pédago : 6 points hardcodés (naïf + kmeans)
+│   ├── rbf.cpp                    # version images (mêmes fichiers binaires que linear_model.c)
+│   ├── notebook_rbf.ipynb         # notebook : lance le C++ et trace les graphes
+│   └── eigen-5.0.0/               # librairie Eigen (IGNORÉE par git, à télécharger, voir Partie RBF)
 │
 ├── visualization/                 # Scripts qui produisent des graphes
 │   ├── plot_linear.py             # points + droite de décision (lit poids.txt)
@@ -279,3 +285,106 @@ Ce qu'il faut regarder :
 
 Résultat attendu : accuracy de test autour de **0.40**, à peine au-dessus du hasard (~0.33 pour
 3 classes) → modèle linéaire trop faible pour ces images, ce qui justifie de passer au MLP.
+
+---
+
+### Partie RBF — Radial Basis Function Network (C++)
+
+Le RBF remplace les hyperplans du modèle linéaire par des « influences » gaussiennes :
+chaque centre émet une influence `phi(x, c) = e^(-gamma * ||x - c||²)` qui décroît avec
+la distance. Pas de descente de gradient, l'entraînement se fait en une passe :
+
+1. `kmeans` choisit K centres représentatifs du train (chaque centre = moyenne de son groupe de points)
+2. on construit la matrice `phi` (N × K) : influence de chaque point sur chaque centre
+3. les poids sont résolus d'un coup : `W = phi⁺ · Y` (pseudo-inverse par SVD, Y en one-hot)
+4. prédiction : `argmax_k Σ_c W[k][c] * phi_c(x)`
+
+Fichiers :
+- `models/rbf/rbf_simple.cpp` : version pédagogique sur 6 points hardcodés — RBF **naïf**
+  (centres = tous les points) puis RBF **kmeans**. Sert à prouver la justesse de l'implémentation.
+- `models/rbf/rbf.cpp` : version images (mêmes fichiers `.f32bin`/`.i32bin` et même format de
+  sortie que `linear_model.c`).
+- `models/rbf/notebook_rbf.ipynb` : notebook interactif.
+
+#### 0) Dépendance : Eigen (une fois par machine)
+
+La pseudo-inverse utilise **Eigen 5.0.0** (librairie de matrices, headers only, rien à installer).
+Le dossier `models/rbf/eigen-5.0.0/` est **ignoré par git** (~3000 fichiers de headers) :
+
+```bash
+curl -L https://gitlab.com/libeigen/eigen/-/archive/5.0.0/eigen-5.0.0.tar.gz | tar xz -C models/rbf/
+```
+
+(ou télécharger le zip sur https://eigen.tuxfamily.org et le dézipper dans `models/rbf/`,
+le dossier doit s'appeler exactement `eigen-5.0.0`).
+
+#### 1) Vérifier la justesse (points jouets)
+
+```bash
+g++ -O2 -std=c++17 models/rbf/rbf_simple.cpp -o models/rbf/rbf_simple -I models/rbf
+./models/rbf/rbf_simple
+```
+
+Résultat attendu :
+- **naïf** : accuracy = 1.00 — avec autant de centres que de points, le système `W = phi⁻¹·Y`
+  interpole exactement les données (normal, c'est la propriété du RBF naïf)
+- **kmeans (4 centres pour 6 points)** : accuracy ≈ 0.83 — moins de centres = modèle plus
+  simple, on perd un point (c'est le compromis complexité/généralisation)
+
+#### 2) Entraîner sur les images
+
+```bash
+g++ -O2 -std=c++17 models/rbf/rbf.cpp -o models/rbf/rbf -I models/rbf
+```
+
+Chemins par défaut (NB normalisée, gamma=0.01, 100 centres, seed=42) :
+
+```bash
+./models/rbf/rbf
+```
+
+Avec tout explicite :
+
+```bash
+./models/rbf/rbf \
+  datasets/transformed/nb/normalisee/X_train.f32bin \
+  datasets/transformed/nb/normalisee/y_train.i32bin \
+  datasets/transformed/nb/normalisee/X_test.f32bin \
+  datasets/transformed/nb/normalisee/y_test.i32bin \
+  0.01 100 42
+```
+
+Arguments : `./models/rbf/rbf <X_train> <y_train> <X_test> <y_test> [gamma] [nb_centres] [seed]`
+
+Sortie : `acc train <x>`, `acc test <x>` puis la matrice de confusion 3×3 sur le test
+(même format que le linéaire, lisible par le notebook).
+
+#### 3) Notebook interactif
+
+```bash
+source .venv/bin/activate
+jupyter notebook models/rbf/notebook_rbf.ipynb
+```
+
+Variables à changer (cellule 1, en haut) :
+
+| Variable | Rôle | Valeurs |
+|----------|------|---------|
+| `variante` | type de features | `"rgb"`, `"nb"`, `"contours"` |
+| `normalisation` | pixels bruts ou 0–1 | `"normalisee"`, `"non_normalisee"` |
+| `gamma` | largeur des gaussiennes | ex. `0.01` |
+| `nb_centres` | K du kmeans (complexité du modèle) | ex. `100` |
+| `seed` | graine de l'init aléatoire du kmeans | ex. `42` |
+
+Ce qu'il faut regarder :
+- **Courbe impact de gamma** : gamma trop grand → gaussiennes très étroites → apprentissage
+  « par cœur » (train haut, test bas = **surapprentissage**) ; gamma trop petit → toutes les
+  influences se valent → **sous-apprentissage**.
+- **Courbe impact de nb_centres** : plus de centres = modèle plus complexe (mêmes phénomènes).
+- **Matrice de confusion (test)** et **bar chart des 6 variantes** : comme pour le linéaire.
+
+Remarques :
+- le RBF n'a **pas d'epochs** : un run = un entraînement complet (kmeans + pseudo-inverse)
+- perf : `rgb` (d=49152) est ~10× plus lent que `nb` (d=4096) → régler gamma/nb_centres
+  sur `nb` d'abord, puis lancer la comparaison des variantes
+- les binaires compilés (`models/rbf/rbf`, `models/rbf/rbf_simple`) sont ignorés par git
