@@ -3,14 +3,18 @@
 #include <stdlib.h>
 
 /*
- * Classifieur linéaire multi-classes (K=3) pour les features exportées depuis
- * datasets/transformed/nb/normalisee.
+ * Classifieur linéaire multi-classes (K=3) pour les features exportées par
+ * preprocessing/build_dataset.py (split train/test déjà fait en Python).
  *
- * Format binaire  (généré par preprocessing/export_for_c_nb_normalisee.py):
- *  - X: [int32 n][int32 d][float32 n*d] (row-major)
- *  - y: [int32 n][int32 labels[n]] avec labels dans {0,1,2}
+ * Fichiers attendus (par variante et normalisation) :
+ *   datasets/transformed/<variante>/<normalisee|non_normalisee>/
+ *     X_train.f32bin, y_train.i32bin, X_test.f32bin, y_test.i32bin
  *
- * Modèle (perceptron multi-classes):
+ * Format binaire (little-endian, NE PAS modifier) :
+ *   X_*.f32bin : [int32 n][int32 d][float32 n*d]  (row-major)
+ *   y_*.i32bin : [int32 n][int32 labels[n]]       (labels dans {0,1,2})
+ *
+ * Modèle (perceptron multi-classes) :
  *   score_k = w_k · x + b_k
  *   pred = argmax_k score_k
  *   Si pred != y: w_y += lr*x ; w_pred -= lr*x ; b_y += lr ; b_pred -= lr
@@ -108,8 +112,8 @@ static void load_y(const char *path, int expected_n, int **out_y) {
     *out_y = y;
 }
 
-static float train_accuracy(const float *W, const float *b, const float *X, const int *y, int n, int d) {
-    // Mesure simple: accuracy sur les mêmes données (train).
+static float accuracy(const float *W, const float *b, const float *X, const int *y, int n, int d) {
+    // Accuracy sur un jeu X/y quelconque (train ou test).
     int correct = 0;
     for (int i = 0; i < n; i++) {
         const float *xi = X + (size_t)i * (size_t)d;
@@ -123,27 +127,64 @@ static float train_accuracy(const float *W, const float *b, const float *X, cons
     return (float)correct / (float)n;
 }
 
+static void confusion_test(const float *W, const float *b, const float *X, const int *y, int n, int d, int conf[K_CLASSES][K_CLASSES]) {
+    for (int a = 0; a < K_CLASSES; a++) {
+        for (int p = 0; p < K_CLASSES; p++) {
+            conf[a][p] = 0;
+        }
+    }
+    for (int i = 0; i < n; i++) {
+        const float *xi = X + (size_t)i * (size_t)d;
+        float s[K_CLASSES];
+        for (int k = 0; k < K_CLASSES; k++) {
+            s[k] = dot(W + (size_t)k * (size_t)d, xi, d) + b[k];
+        }
+        int pred = argmax3(s);
+        int yi = y[i];
+        if (yi >= 0 && yi < K_CLASSES && pred >= 0 && pred < K_CLASSES) {
+            conf[yi][pred] += 1;
+        }
+    }
+}
+
 int main(int argc, char *argv[]) {
-    // Par défaut on lit les exports générés par le script Python.
-    const char *x_path = "datasets/for_c/nb_normalisee_X.f32bin";
-    const char *y_path = "datasets/for_c/nb_normalisee_y.i32bin";
+    // Par défaut : variante NB normalisée (d=4096).
+    const char *x_train_path = "datasets/transformed/nb/normalisee/X_train.f32bin";
+    const char *y_train_path = "datasets/transformed/nb/normalisee/y_train.i32bin";
+    const char *x_test_path  = "datasets/transformed/nb/normalisee/X_test.f32bin";
+    const char *y_test_path  = "datasets/transformed/nb/normalisee/y_test.i32bin";
     int epochs = 30;
     float lr = 0.1f;
 
-    if (argc >= 3) {
-        x_path = argv[1];
-        y_path = argv[2];
+    if (argc >= 5) {
+        x_train_path = argv[1];
+        y_train_path = argv[2];
+        x_test_path  = argv[3];
+        y_test_path  = argv[4];
     }
-    if (argc >= 4) epochs = atoi(argv[3]);
-    if (argc >= 5) lr = (float)atof(argv[4]);
+    if (argc >= 6) epochs = atoi(argv[5]);
+    if (argc >= 7) lr = (float)atof(argv[6]);
 
-    int n = 0, d = 0;
-    float *X = NULL;
-    int *y = NULL;
-    load_X(x_path, &n, &d, &X);
-    load_y(y_path, n, &y);
+    int n_train = 0, d_train = 0;
+    int n_test = 0, d_test = 0;
+    float *X_train = NULL;
+    float *X_test = NULL;
+    int *y_train = NULL;
+    int *y_test = NULL;
 
-    printf("Chargé: n=%d, d=%d\n", n, d);
+    load_X(x_train_path, &n_train, &d_train, &X_train);
+    load_y(y_train_path, n_train, &y_train);
+    load_X(x_test_path, &n_test, &d_test, &X_test);
+    load_y(y_test_path, n_test, &y_test);
+
+    if (d_train != d_test) {
+        fprintf(stderr, "Erreur: d incohérent (train=%d, test=%d)\n", d_train, d_test);
+        die("Les jeux train et test doivent avoir le même nombre de features");
+    }
+
+    int d = d_train;
+    printf("Chargé train: n=%d, d=%d\n", n_train, d);
+    printf("Chargé test : n=%d, d=%d\n", n_test, d);
     printf("Entraînement perceptron multi-classes (K=3), epochs=%d, lr=%.4f\n", epochs, lr);
 
     // Paramètres du modèle: W (K*d) et b (K). Init à 0.
@@ -154,14 +195,14 @@ int main(int argc, char *argv[]) {
 
     for (int e = 0; e < epochs; e++) {
         int updates = 0;
-        for (int i = 0; i < n; i++) {
-            const float *xi = X + (size_t)i * (size_t)d;
+        for (int i = 0; i < n_train; i++) {
+            const float *xi = X_train + (size_t)i * (size_t)d;
             float s[K_CLASSES];
             for (int k = 0; k < K_CLASSES; k++) {
                 s[k] = dot(W + (size_t)k * (size_t)d, xi, d) + b[k];
             }
             int pred = argmax3(s);
-            int yi = y[i];
+            int yi = y_train[i];
             if (pred != yi) {
                 // Règle perceptron: on "pousse" la vraie classe vers le haut
                 // et on "tire" la classe prédite vers le bas.
@@ -177,18 +218,25 @@ int main(int argc, char *argv[]) {
                 updates++;
             }
         }
-        float acc = train_accuracy(W, b, X, y, n, d);
-        printf("Epoch %d/%d: updates=%d, train_acc=%.3f\n", e + 1, epochs, updates, acc);
+        float acc_train = accuracy(W, b, X_train, y_train, n_train, d);
+        float acc_test = accuracy(W, b, X_test, y_test, n_test, d);
+        printf("epoch %d train %.3f test %.3f\n", e + 1, acc_train, acc_test);
         if (updates == 0) {
-            // Convergence rapide sur petits jeux
             break;
         }
     }
 
-    printf("Accuracy finale (train): %.3f\n", train_accuracy(W, b, X, y, n, d));
+    int conf[K_CLASSES][K_CLASSES];
+    confusion_test(W, b, X_test, y_test, n_test, d, conf);
+    printf("confusion\n");
+    for (int a = 0; a < K_CLASSES; a++) {
+        printf("%d %d %d\n", conf[a][0], conf[a][1], conf[a][2]);
+    }
 
     free(W);
-    free(X);
-    free(y);
+    free(X_train);
+    free(X_test);
+    free(y_train);
+    free(y_test);
     return 0;
 }
