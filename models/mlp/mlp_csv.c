@@ -1,8 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
-#define H 4
-#define MAX_POINTS 300
 #include <math.h>
+
+/*
+ * --- Validation contre les cas de tests officiels du prof ---
+ * Le notebook "[Notebook] Cas de tests.ipynb" du prof definit des jeux de
+ * donnees de reference (Linear Simple, Linear Multiple, Cross...) avec des
+ * labels {-1,+1}. On les a regeneres en CSV {0,1} (meme convention que nos
+ * fichiers) dans datasets/toy/prof_*.csv, pour verifier que ce programme se
+ * comporte comme attendu sur les cas officiels, pas seulement sur les notres.
+ * Resultat attendu : OK partout, y compris sur prof_cross.csv (non separable,
+ * comme XOR) -- c'est justement ce que le MLP doit reussir la ou le lineaire
+ * echoue.
+ */
+
+#define H 4
+#define MAX_POINTS 600   /* prof_cross.csv contient 500 points */
 
 double sigmoid(double z) {
     return 1.0 / (1.0 + exp(-z));
@@ -134,6 +147,7 @@ for (int epoch = 0; epoch < epochs; epoch++) {
 
 // Verification finale, point par point
 printf("\n--- Verification finale ---\n");
+int correct_final = 0;
 for (int i = 0; i < n; i++) {
     for (int h = 0; h < H; h++) {
         double z = W1[h][0] * x1[i] + W1[h][1] * x2[i] + b1[h];
@@ -145,8 +159,10 @@ for (int i = 0; i < n; i++) {
     }
     double sortie = sigmoid(z2);
     int prediction = (sortie > 0.5) ? 1 : 0;
+    if (prediction == label[i]) correct_final++;
     printf("Point %d : sortie = %.3f, prediction = %d, vraie classe = %d\n", i, sortie, prediction, label[i]);
 }
+printf("accuracy_test=%.4f\n", (double)correct_final / n);
 
     return 0;
 }
