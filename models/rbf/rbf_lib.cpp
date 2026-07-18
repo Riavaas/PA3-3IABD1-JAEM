@@ -6,18 +6,6 @@
 
 #include "eigen-5.0.0/Eigen/Dense"
 
-/*
- * RBF Network (version kmeans) — bibliothèque partagée pour ctypes.
- * Les données sont fournies par Python (tableaux plats en double),
- * aucun fichier n'est lu ici.
- *
- * Modèle RBF :
- *   1) kmeans -> K centres
- *   2) phi[i][c] = e^(-gamma * ||x_i - centre_c||^2)   (N x K)
- *   3) W = phi^+ * Y   (pseudo inverse, Y en one-hot)
- *   4) pred = argmax_k somme_c W[k][c] * phi_c(x)
- */
-
 #define K_CLASSES 3
 
 extern "C" {
@@ -58,7 +46,6 @@ double** pseudo_inverse(double** A, int m, int n) {
 }
 
 
-// distanceQuadratique : e^ -gamma * distance^2
 double distanceQuadratique(double* x1, double* x2, int dimension){
 
     double distance = 0;
@@ -163,11 +150,11 @@ double** calcul_poids(double** matInv, double** y_true, int nb_centre, int nb_po
 
 // prediction : score_k = somme_c w[k][c] * e^(-gamma * ||x - centre_c||^2)
 // on renvoie la classe avec le plus grand score
-int predict(double* x, double** centres, int nbCentres, double** w, int nbClasses, int dimension, double gamma){
+int predict(double* x, double** centres, int nbCentres, double** w, double* b, int nbClasses, int dimension, double gamma){
     int meilleureClasse = 0;
     double meilleurScore = 0;
     for(int k = 0; k < nbClasses; k++){
-        double score = 0;
+        double score = b[k];
         for(int c = 0; c < nbCentres; c++){
             double phi = influence(distanceQuadratique(x, centres[c], dimension), gamma);
             score += w[k][c] * phi;
@@ -180,7 +167,86 @@ int predict(double* x, double** centres, int nbCentres, double** w, int nbClasse
     return meilleureClasse;
 }
 
-void entrainer(const double* X, const int* y, int n, int d, int nb_centres, double gamma, unsigned int seed, double* centres_out, double* W_out ){
+int predict_from_phi(double* phiRow, double** w, double* b, int nbClasses, int nbCentres){
+    int meilleureClasse = 0;
+    double meilleurScore = 0;
+    for(int k = 0; k < nbClasses; k++){
+        double score = b[k];
+        for(int c = 0; c < nbCentres; c++){
+            score += w[k][c] * phiRow[c];
+        }
+        if(k == 0 || score > meilleurScore){
+            meilleurScore = score;
+            meilleureClasse = k;
+        }
+    }
+    return meilleureClasse;
+}
+
+static float accuracy_phi(double** phi, const int *y, int n, double** w, double* b, int nbCentres) {
+    int correct = 0;
+    for (int i = 0; i < n; i++) {
+        int pred = predict_from_phi(phi[i], w, b, K_CLASSES, nbCentres);
+        if (pred == y[i]) correct++;
+    }
+    return (float)correct / (float)n;
+}
+
+static void entrainement_rosenblatt(double** phi_train, const int* y_train, int n_train,
+                                    double** w, double* b, int nbCentres,
+                                    int epochs, double lr){
+    double** poche_w = allocation_matricielle(K_CLASSES, nbCentres);
+    double poche_b[K_CLASSES] = {0.0, 0.0, 0.0};
+    float meilleure_acc = -1.0f;
+
+    // ordre de passage melange a chaque epoch
+    int* ordre = (int*)malloc(n_train * sizeof(int));
+    for(int i = 0; i < n_train; i++){ ordre[i] = i; }
+
+    for(int e = 0; e < epochs; e++){
+        for(int i = n_train - 1; i > 0; i--){
+            int j = rand() % (i + 1);
+            int tmp = ordre[i]; ordre[i] = ordre[j]; ordre[j] = tmp;
+        }
+
+        int updates = 0;
+        for(int i = 0; i < n_train; i++){
+            int idx = ordre[i];
+            int pred = predict_from_phi(phi_train[idx], w, b, K_CLASSES, nbCentres);
+            int yi = y_train[idx];
+            if(pred != yi){
+                for(int c = 0; c < nbCentres; c++){
+                    double v = lr * phi_train[idx][c];
+                    w[yi][c] += v;
+                    w[pred][c] -= v;
+                }
+                b[yi] += lr;
+                b[pred] -= lr;
+                updates++;
+            }
+        }
+
+        float acc_train = accuracy_phi(phi_train, y_train, n_train, w, b, nbCentres);
+        if(acc_train > meilleure_acc){
+            meilleure_acc = acc_train;
+            for(int k = 0; k < K_CLASSES; k++){
+                for(int c = 0; c < nbCentres; c++){ poche_w[k][c] = w[k][c]; }
+                poche_b[k] = b[k];
+            }
+        }
+
+        if(updates == 0){ break; } 
+    }
+
+    for(int k = 0; k < K_CLASSES; k++){
+        for(int c = 0; c < nbCentres; c++){ w[k][c] = poche_w[k][c]; }
+        b[k] = poche_b[k];
+    }
+    liberateur_judiciaire(poche_w, K_CLASSES);
+    free(ordre);
+}
+
+void entrainer(const double* X, const int* y, int n, int d, int nb_centres, double gamma, unsigned int seed, double* centres_out, double* W_out){
 
     set_seed(seed);
 
@@ -222,7 +288,44 @@ void entrainer(const double* X, const int* y, int n, int d, int nb_centres, doub
 
 }
 
-void predire_batch(const double* X_test, int n_test, int d, const double* centres_plat, int nb_centres, const double* W_plat, double gamma, int* predictions_out)
+void entrainer_rosenblatt(const double* X, const int* y, int n, int d,
+                          int nb_centres, double gamma, unsigned int seed,
+                          int epochs, double lr,
+                          double* centres_out, double* W_out, double* b_out){
+
+    set_seed(seed);
+
+    double** lignes = (double**)malloc(n * sizeof(double*));
+    for (int i = 0; i < n; i++) {
+        lignes[i] = (double*)X + (size_t)i * (size_t)d;
+    }
+
+    double** centres = kmeans(lignes, n, d, nb_centres, 50);
+    double** phi = remplirMatriceCentres(d, lignes, n, centres, nb_centres, gamma);
+
+    double** w = allocation_matricielle(K_CLASSES, nb_centres);
+    double b[K_CLASSES] = {0.0, 0.0, 0.0};
+    entrainement_rosenblatt(phi, y, n, w, b, nb_centres, epochs, lr);
+
+    for(int c = 0; c < nb_centres; c++){
+        for (int j = 0; j < d; j++){
+            centres_out[c * d + j] = centres[c][j];
+        }
+    }
+    for(int c = 0; c < K_CLASSES; c++){
+        for (int j = 0; j < nb_centres; j++){
+            W_out[c * nb_centres + j] = w[c][j];
+        }
+    }
+    for(int k = 0; k < K_CLASSES; k++){ b_out[k] = b[k]; }
+
+    liberateur_judiciaire(centres, nb_centres);
+    liberateur_judiciaire(phi, n);
+    liberateur_judiciaire(w, K_CLASSES);
+    free(lignes);
+}
+
+void predire_batch(const double* X_test, int n_test, int d, const double* centres_plat, int nb_centres, const double* W_plat, const double* b_plat, double gamma, int* predictions_out)
 {
     double** lignes = (double**)malloc(n_test * sizeof(double*));
     for (int i = 0; i < n_test; i++) {
@@ -240,7 +343,7 @@ void predire_batch(const double* X_test, int n_test, int d, const double* centre
     }
 
     for (int i = 0; i < n_test; i++) {
-        predictions_out[i] = predict(lignes[i], centres, nb_centres, w, K_CLASSES, d, gamma);
+        predictions_out[i] = predict(lignes[i], centres, nb_centres, w, (double*)b_plat, K_CLASSES, d, gamma);    
     }
 
     free(lignes);
