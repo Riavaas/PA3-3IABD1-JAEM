@@ -148,7 +148,7 @@ static void confusion_test(const float *W, const float *b, const float *X, const
 }
 
 int main(int argc, char *argv[]) {
-    // Par défaut : variante NB normalisée (d=4096).
+    // defaut: variante nb normalisée (d=4096).
     const char *x_train_path = "datasets/transformed/nb/normalisee/X_train.f32bin";
     const char *y_train_path = "datasets/transformed/nb/normalisee/y_train.i32bin";
     const char *x_test_path  = "datasets/transformed/nb/normalisee/X_test.f32bin";
@@ -193,6 +193,14 @@ int main(int argc, char *argv[]) {
     float b[K_CLASSES] = {0.0f, 0.0f, 0.0f};
     if (!W) die("calloc W");
 
+    // pocket : ca oscille (pas separable) donc on garde les meilleurs poids vus
+    // (sur l'acc train, pas test sinon triche) et on les remet a la fin. comme dans rbf.cpp
+    float *poche_W = (float *)calloc(wd, sizeof(float));
+    float poche_b[K_CLASSES] = {0.0f, 0.0f, 0.0f};
+    float meilleure_acc = -1.0f;
+    int meilleure_epoch = 0;
+    if (!poche_W) die("calloc poche_W");
+
     for (int e = 0; e < epochs; e++) {
         int updates = 0;
         for (int i = 0; i < n_train; i++) {
@@ -221,10 +229,28 @@ int main(int argc, char *argv[]) {
         float acc_train = accuracy(W, b, X_train, y_train, n_train, d);
         float acc_test = accuracy(W, b, X_test, y_test, n_test, d);
         printf("epoch %d train %.3f test %.3f\n", e + 1, acc_train, acc_test);
+
+        // nouveau record train -> en poche
+        if (acc_train > meilleure_acc) {
+            meilleure_acc = acc_train;
+            meilleure_epoch = e + 1;
+            for (size_t j = 0; j < wd; j++) { poche_W[j] = W[j]; }
+            for (int k = 0; k < K_CLASSES; k++) { poche_b[k] = b[k]; }
+        }
         if (updates == 0) {
             break;
         }
     }
+
+    // on rend la poche, pas la derniere epoch
+    for (size_t j = 0; j < wd; j++) { W[j] = poche_W[j]; }
+    for (int k = 0; k < K_CLASSES; k++) { b[k] = poche_b[k]; }
+    free(poche_W);
+    printf("pocket epoch %d train %.3f\n", meilleure_epoch, meilleure_acc);
+
+    // acc finales avec les poids de la poche (meme format que rbf.cpp)
+    printf("acc train %.3f\n", accuracy(W, b, X_train, y_train, n_train, d));
+    printf("acc test %.3f\n", accuracy(W, b, X_test, y_test, n_test, d));
 
     int conf[K_CLASSES][K_CLASSES];
     confusion_test(W, b, X_test, y_test, n_test, d, conf);
