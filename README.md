@@ -68,7 +68,8 @@ PA3-3IABD1-JAEM/
     └── train_linear.py
 ```
 
-
+> Remarque : les fichiers compilés en C (`models/lineaire/linear_model_csv`, etc.) et `models/lineaire/poids.txt`
+> sont régénérés ; pas besoin de les versionner.
 
 ### Installation
 
@@ -142,8 +143,8 @@ python3 visualization/plot_linear.py datasets/toy/linear.csv
 python3 visualization/plot_linear.py datasets/toy/xor.csv
 ```
 
-> Ordre important : `poids.txt` est réécrit à chaque exécution du C. Il faut donc lancer
-> le programme C puis le script Python sur le même CSV, à la suite, sinon on trace
+> ⚠️ Ordre important : `poids.txt` est réécrit à chaque exécution du C. Il faut donc lancer
+> le programme C **puis** le script Python **sur le même CSV, à la suite**, sinon on trace
 > les points d'un dataset avec la droite d'un autre.
 
 Résultat attendu :
@@ -292,12 +293,26 @@ Résultat attendu : accuracy de test autour de **0.40**, à peine au-dessus du h
 
 Le RBF remplace les hyperplans du modèle linéaire par des « influences » gaussiennes :
 chaque centre émet une influence `phi(x, c) = e^(-gamma * ||x - c||²)` qui décroît avec
-la distance. Pas de descente de gradient, l'entraînement se fait en une passe :
+la distance. Pipeline :
 
 1. `kmeans` choisit K centres représentatifs du train (chaque centre = moyenne de son groupe de points)
 2. on construit la matrice `phi` (N × K) : influence de chaque point sur chaque centre
-3. les poids sont résolus d'un coup : `W = phi⁺ · Y` (pseudo-inverse par SVD, Y en one-hot)
-4. prédiction : `argmax_k Σ_c W[k][c] * phi_c(x)`
+3. apprentissage des poids de sortie, **deux modes** :
+   - **`rosenblatt`** (défaut) : règle du perceptron multi-classes appliquée dans l'espace
+     des `phi` (même règle que `linear_model.c` : si la prédiction est fausse, on pousse
+     les poids de la vraie classe et on tire ceux de la classe prédite, avec biais).
+     Itératif : hyperparamètres `epochs` et `lr`, arrêt anticipé si plus aucune erreur train.
+     **Pocket algorithm** : comme les données ne sont pas forcément séparables dans l'espace
+     des phi, le perceptron oscille ; on garde donc en mémoire les meilleurs poids rencontrés
+     (selon l'accuracy **train**, jamais le test) et ce sont eux qui sont rendus à la fin
+     (ligne `pocket epoch <e> train <acc>` dans la sortie).
+     **Shuffle** : l'ordre de passage des exemples est remélangé à chaque epoch
+     (Fisher-Yates sur `rand()`, donc reproductible via la seed) — un ordre figé crée des
+     cycles de corrections qui se répètent et alimentent l'oscillation.
+   - **`pinv`** : les poids sont résolus d'un coup, `W = phi⁺ · Y` (pseudo-inverse par SVD,
+     Y en one-hot, solution des moindres carrés). Pas d'epochs ni de lr. Gardé pour
+     comparaison avec la version Rosenblatt.
+4. prédiction : `argmax_k b[k] + Σ_c W[k][c] * phi_c(x)` (b = 0 en mode pinv)
 
 Fichiers :
 - `models/rbf/rbf_simple.cpp` : version pédagogique sur 6 points hardcodés — RBF **naïf**
@@ -337,7 +352,8 @@ Résultat attendu :
 g++ -O2 -std=c++17 models/rbf/rbf.cpp -o models/rbf/rbf -I models/rbf
 ```
 
-Chemins par défaut (NB normalisée, gamma=0.01, 100 centres, seed=42) :
+Chemins par défaut (NB normalisée, gamma=0.01, 100 centres, seed=42, mode rosenblatt,
+100 epochs, lr=0.1) :
 
 ```bash
 ./models/rbf/rbf
@@ -346,18 +362,29 @@ Chemins par défaut (NB normalisée, gamma=0.01, 100 centres, seed=42) :
 Avec tout explicite :
 
 ```bash
+# mode rosenblatt (défaut)
 ./models/rbf/rbf \
   datasets/transformed/nb/normalisee/X_train.f32bin \
   datasets/transformed/nb/normalisee/y_train.i32bin \
   datasets/transformed/nb/normalisee/X_test.f32bin \
   datasets/transformed/nb/normalisee/y_test.i32bin \
-  0.01 100 42
+  0.01 100 42 rosenblatt 100 0.1
+
+# mode pseudo-inverse (pour comparaison)
+./models/rbf/rbf \
+  datasets/transformed/nb/normalisee/X_train.f32bin \
+  datasets/transformed/nb/normalisee/y_train.i32bin \
+  datasets/transformed/nb/normalisee/X_test.f32bin \
+  datasets/transformed/nb/normalisee/y_test.i32bin \
+  0.01 100 42 pinv
 ```
 
-Arguments : `./models/rbf/rbf <X_train> <y_train> <X_test> <y_test> [gamma] [nb_centres] [seed]`
+Arguments : `./models/rbf/rbf <X_train> <y_train> <X_test> <y_test> [gamma] [nb_centres] [seed] [mode] [epochs] [lr]`
+(`mode` = `rosenblatt` ou `pinv` ; `epochs` et `lr` ne servent qu'en mode rosenblatt).
 
-Sortie : `acc train <x>`, `acc test <x>` puis la matrice de confusion 3×3 sur le test
-(même format que le linéaire, lisible par le notebook).
+Sortie : en mode rosenblatt, une ligne `epoch <e> train <acc> test <acc>` par epoch
+(comme le linéaire), puis dans les deux modes `acc train <x>`, `acc test <x>` et la
+matrice de confusion 3×3 sur le test (même format que le linéaire, lisible par le notebook).
 
 #### 3) Notebook interactif
 
@@ -375,16 +402,24 @@ Variables à changer (cellule 1, en haut) :
 | `gamma` | largeur des gaussiennes | ex. `0.01` |
 | `nb_centres` | K du kmeans (complexité du modèle) | ex. `100` |
 | `seed` | graine de l'init aléatoire du kmeans | ex. `42` |
+| `mode` | méthode d'apprentissage des poids | `"rosenblatt"`, `"pinv"` |
+| `epochs` | passages sur le train (rosenblatt) | ex. `100` |
+| `lr` | vitesse d'apprentissage (rosenblatt) | ex. `0.1` |
 
 Ce qu'il faut regarder :
+- **Courbe train/test par epoch** (mode rosenblatt) : si le train monte et que le test
+  stagne, c'est du **surapprentissage** (comme pour le linéaire).
 - **Courbe impact de gamma** : gamma trop grand → gaussiennes très étroites → apprentissage
   « par cœur » (train haut, test bas = **surapprentissage**) ; gamma trop petit → toutes les
   influences se valent → **sous-apprentissage**.
 - **Courbe impact de nb_centres** : plus de centres = modèle plus complexe (mêmes phénomènes).
 - **Matrice de confusion (test)** et **bar chart des 6 variantes** : comme pour le linéaire.
+- **Comparaison rosenblatt vs pinv** (dernière cellule) : mêmes centres kmeans (même seed),
+  seule la méthode d'apprentissage des poids change.
 
 Remarques :
-- le RBF n'a **pas d'epochs** : un run = un entraînement complet (kmeans + pseudo-inverse)
+- en mode **rosenblatt**, le RBF a des epochs et un lr (perceptron dans l'espace des phi) ;
+  en mode **pinv**, un run = un entraînement complet en une passe (kmeans + pseudo-inverse)
 - perf : `rgb` (d=49152) est ~10× plus lent que `nb` (d=4096) → régler gamma/nb_centres
   sur `nb` d'abord, puis lancer la comparaison des variantes
 - les binaires compilés (`models/rbf/rbf`, `models/rbf/rbf_simple`) sont ignorés par git
