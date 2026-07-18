@@ -7,22 +7,20 @@
 #include "eigen-5.0.0/Eigen/Dense"
 
 /*
- * RBF Network (version kmeans) pour les features exportées par
- * preprocessing/build_dataset.py (mêmes fichiers que linear_model.c).
- *
- * Fichiers attendus :
+ * RBF kmeans 
+ * preprocessing/build_dataset.py 
+
  *   datasets/transformed/<variante>/<normalisee|non_normalisee>/
  *     X_train.f32bin, y_train.i32bin, X_test.f32bin, y_test.i32bin
- *
- * Format binaire (little-endian, NE PAS modifier) :
+ 
  *   X_*.f32bin : [int32 n][int32 d][float32 n*d]  (row-major)
  *   y_*.i32bin : [int32 n][int32 labels[n]]       (labels dans {0,1,2})
  *
- * Modèle RBF :
+ * Modele RBF kmeans :
  *   1) kmeans -> K centres
  *   2) phi[i][c] = e^(-gamma * ||x_i - centre_c||^2)   (N x K)
- *   3) W = phi^+ * Y   (pseudo inverse, Y en one-hot)
- *   4) pred = argmax_k somme_c W[k][c] * phi_c(x)
+ *   3) poids, 2 modes : rosenblatt (defaut) ou pinv
+ *   4) pred = argmax_k b[k] + somme_c W[k][c] * phi_c(x)   (b=0 en pinv)
  */
 
 #define K_CLASSES 3
@@ -49,7 +47,7 @@ void liberateur_judiciaire(double** mat, int rows){
 }
 void set_seed(unsigned int s){ srand(s); }
 
-// Inversion Matricielles avec Eigen
+// inversion matricielle Eigen
 
 double** pseudo_inverse(double** A, int m, int n) {
     Eigen::MatrixXd Mat(m, n);
@@ -70,7 +68,7 @@ double** pseudo_inverse(double** A, int m, int n) {
 }
 
 
-// distanceQuadratique : e^ -gamma * distance^2
+// distanceQuadratique e^ -gamma * distance^2
 double distanceQuadratique(double* x1, double* x2, int dimension){
 
     double distance = 0;
@@ -174,7 +172,7 @@ double** calcul_poids(double** matInv, double** y_true, int nb_centre, int nb_po
     return w;
 }
 
-// prediction : score_k = somme_c w[k][c] * e^(-gamma * ||x - centre_c||^2)
+// prediction  score_k = somme_c w[k][c] * e^(-gamma * ||x - centre_c||^2)
 // on renvoie la classe avec le plus grand score
 int predict(double* x, double** centres, int nbCentres, double** w, int nbClasses, int dimension, double gamma){
     int meilleureClasse = 0;
@@ -193,7 +191,101 @@ int predict(double* x, double** centres, int nbCentres, double** w, int nbClasse
     return meilleureClasse;
 }
 
-// chargement des fichiers binaires (repris de linear_model.c)
+//  pareil que predict mais la ligne de phi est deja calculee, evite de tout refaire
+//score = b + somme w*phi  (b=0 en pinv)
+int predict_from_phi(double* phiRow, double** w, double* b, int nbClasses, int nbCentres){
+    int meilleureClasse = 0;
+    double meilleurScore = 0;
+    for(int k = 0; k < nbClasses; k++){
+        double score = b[k];
+        for(int c = 0; c < nbCentres; c++){
+            score += w[k][c] * phiRow[c];
+        }
+        if(k == 0 || score > meilleurScore){
+            meilleurScore = score;
+            meilleureClasse = k;
+        }
+    }
+    return meilleureClasse;
+}
+
+// accuracy matrice phi  calculee
+static float accuracy_phi(double** phi, const int *y, int n, double** w, double* b, int nbCentres) {
+    int correct = 0;
+    for (int i = 0; i < n; i++) {
+        int pred = predict_from_phi(phi[i], w, b, K_CLASSES, nbCentres);
+        if (pred == y[i]) correct++;
+    }
+    return (float)correct / (float)n;
+}
+
+// rosenblatt sur les ph, meme qu linear_model.c mais entrees influences pas pixels
+//  erreur  = pousse vraie classe, tire predite  (+ pareil sur les biais)
+// pocket : ca oscille (pas separable) donc garde les meilleurs poids vus (acc train,pas test sinon  triche) et remet a la fin
+void entrainement_rosenblatt(double** phi_train, const int *y_train, int n_train,
+                             double** phi_test, const int *y_test, int n_test,
+                             double** w, double* b, int nbCentres, int epochs, double lr){
+    // poooooche
+    double** poche_w = allocation_matricielle(K_CLASSES, nbCentres);
+    double poche_b[K_CLASSES] = {0.0, 0.0, 0.0};
+    float meilleure_acc = -1.0f;
+    int meilleure_epoch = 0;
+
+    // ordre de passage melange chaque epochs
+    int* ordre = (int*)malloc(n_train * sizeof(int));
+    for(int i = 0; i < n_train; i++){ ordre[i] = i; }
+
+    for(int e = 0; e < epochs; e++){
+        // fisher-yates rand()  seedable
+        for(int i = n_train - 1; i > 0; i--){
+            int j = rand() % (i + 1);
+            int tmp = ordre[i]; ordre[i] = ordre[j]; ordre[j] = tmp;
+        }
+
+        int updates = 0;
+        for(int i = 0; i < n_train; i++){
+            int idx = ordre[i];
+            int pred = predict_from_phi(phi_train[idx], w, b, K_CLASSES, nbCentres);
+            int yi = y_train[idx];
+            if(pred != yi){
+                // vraie classe vers le haut, pred vers le bas
+                for(int c = 0; c < nbCentres; c++){
+                    double v = lr * phi_train[idx][c];
+                    w[yi][c] += v;
+                    w[pred][c] -= v;
+                }
+                b[yi] += lr;
+                b[pred] -= lr;
+                updates++;
+            }
+        }
+        float acc_train = accuracy_phi(phi_train, y_train, n_train, w, b, nbCentres);
+        float acc_test = accuracy_phi(phi_test, y_test, n_test, w, b, nbCentres);
+        printf("epoch %d train %.3f test %.3f\n", e + 1, acc_train, acc_test);
+
+        // nouveau record train en poche
+        if(acc_train > meilleure_acc){
+            meilleure_acc = acc_train;
+            meilleure_epoch = e + 1;
+            for(int k = 0; k < K_CLASSES; k++){
+                for(int c = 0; c < nbCentres; c++){ poche_w[k][c] = w[k][c]; }
+                poche_b[k] = b[k];
+            }
+        }
+        if(updates == 0){ break; }  // plus d'erreur  converge fini
+    }
+
+
+    for(int k = 0; k < K_CLASSES; k++){
+        for(int c = 0; c < nbCentres; c++){ w[k][c] = poche_w[k][c]; }
+        b[k] = poche_b[k];
+    }
+    liberateur_judiciaire(poche_w, K_CLASSES);
+    free(ordre);
+    printf("popoche epoch %d train %.3f\n", meilleure_epoch, meilleure_acc);
+}
+
+// repris de linear_model.c
 // on stocke direct en double pour reutiliser les fonctions du dessus
 static void load_X(const char *path, int *out_n, int *out_d, double **out_X) {
     FILE *f = fopen(path, "rb");
@@ -255,24 +347,15 @@ static void load_y(const char *path, int expected_n, int **out_y) {
     *out_y = y;
 }
 
-// accuracy sur un jeu X/y quelconque (train ou test)
-static float accuracy(double** lignes, const int *y, int n, double** centres, int nbCentres, double** w, int d, double gamma) {
-    int correct = 0;
-    for (int i = 0; i < n; i++) {
-        int pred = predict(lignes[i], centres, nbCentres, w, K_CLASSES, d, gamma);
-        if (pred == y[i]) correct++;
-    }
-    return (float)correct / (float)n;
-}
-
-static void confusion_test(double** lignes, const int *y, int n, double** centres, int nbCentres, double** w, int d, double gamma, int conf[K_CLASSES][K_CLASSES]) {
+// confusion sur phi deja calculee
+static void confusion_test(double** phi, const int *y, int n, double** w, double* b, int nbCentres, int conf[K_CLASSES][K_CLASSES]) {
     for (int a = 0; a < K_CLASSES; a++) {
         for (int p = 0; p < K_CLASSES; p++) {
             conf[a][p] = 0;
         }
     }
     for (int i = 0; i < n; i++) {
-        int pred = predict(lignes[i], centres, nbCentres, w, K_CLASSES, d, gamma);
+        int pred = predict_from_phi(phi[i], w, b, K_CLASSES, nbCentres);
         int yi = y[i];
         if (yi >= 0 && yi < K_CLASSES && pred >= 0 && pred < K_CLASSES) {
             conf[yi][pred] += 1;
@@ -281,7 +364,7 @@ static void confusion_test(double** lignes, const int *y, int n, double** centre
 }
 
 int main(int argc, char *argv[]) {
-    // Par défaut : variante NB normalisée (d=4096).
+    // Par défaut variante NB normalisée mais mieux rgb 
     const char *x_train_path = "datasets/transformed/nb/normalisee/X_train.f32bin";
     const char *y_train_path = "datasets/transformed/nb/normalisee/y_train.i32bin";
     const char *x_test_path  = "datasets/transformed/nb/normalisee/X_test.f32bin";
@@ -289,6 +372,9 @@ int main(int argc, char *argv[]) {
     double gamma = 0.01;
     int nbCentres = 100;
     unsigned int seed = 42;
+    const char *mode = "rosenblatt";  //pinv
+    int epochs = 100;
+    double lr = 0.1;
 
     if (argc >= 5) {
         x_train_path = argv[1];
@@ -299,6 +385,12 @@ int main(int argc, char *argv[]) {
     if (argc >= 6) gamma = atof(argv[5]);
     if (argc >= 7) nbCentres = atoi(argv[6]);
     if (argc >= 8) seed = (unsigned int)atoi(argv[7]);
+    if (argc >= 9) mode = argv[8];
+    if (argc >= 10) epochs = atoi(argv[9]);
+    if (argc >= 11) lr = atof(argv[10]);
+    if (strcmp(mode, "rosenblatt") != 0 && strcmp(mode, "pinv") != 0) {
+        die("mode invalide (attendu : rosenblatt ou pinv)");
+    }
 
     int n_train = 0, d_train = 0;
     int n_test = 0, d_test = 0;
@@ -320,9 +412,15 @@ int main(int argc, char *argv[]) {
 
     printf("Chargé train: n=%d, d=%d\n", n_train, d);
     printf("Chargé test : n=%d, d=%d\n", n_test, d);
-    printf("Entraînement RBF kmeans, gamma=%g, nb_centres=%d, seed=%u\n", gamma, nbCentres, seed);
+    if (strcmp(mode, "rosenblatt") == 0) {
+        printf("Entraînement RBF kmeans + Rosenblatt, gamma=%g, nb_centres=%d, seed=%u, epochs=%d, lr=%g\n",
+               gamma, nbCentres, seed, epochs, lr);
+    } else {
+        printf("Entraînement RBF kmeans + pseudo-inverse, gamma=%g, nb_centres=%d, seed=%u\n",
+               gamma, nbCentres, seed);
+    }
 
-    // tableaux de pointeurs vers chaque ligne (pour reutiliser les fonctions en double**)
+    //tableaux  pointeurs vers chaque ligne pour reutiliser les fonctions en double**
     double** lignes_train = (double**)malloc(n_train * sizeof(double*));
     for (int i = 0; i < n_train; i++) { lignes_train[i] = X_train + (size_t)i * (size_t)d; }
     double** lignes_test = (double**)malloc(n_test * sizeof(double*));
@@ -336,31 +434,46 @@ int main(int argc, char *argv[]) {
 
     set_seed(seed);
 
-    // 1) kmeans
+    //  kmeans
     double** centres = kmeans(lignes_train, n_train, d, nbCentres, 50);
 
-    // 2) phi (N x K)  3) pseudo inverse (K x N)  4) W = phi^+ * Y
+    // phi train test calcule 
     double** phi = remplirMatriceCentres(d, lignes_train, n_train, centres, nbCentres, gamma);
-    double** phiInverse = pseudo_inverse(phi, n_train, nbCentres);
-    double** w = calcul_poids(phiInverse, Y, nbCentres, n_train, K_CLASSES);
+    double** phi_test = remplirMatriceCentres(d, lignes_test, n_test, centres, nbCentres, gamma);
 
-    float acc_train = accuracy(lignes_train, y_train, n_train, centres, nbCentres, w, d, gamma);
-    float acc_test = accuracy(lignes_test, y_test, n_test, centres, nbCentres, w, d, gamma);
+    // poids
+    double** w = NULL;
+    double** phiInverse = NULL;
+    double b[K_CLASSES] = {0.0, 0.0, 0.0};  // biais (  0  pinv)
+
+    if (strcmp(mode, "rosenblatt") == 0) {
+        w = allocation_matricielle(K_CLASSES, nbCentres);
+        entrainement_rosenblatt(phi, y_train, n_train, phi_test, y_test, n_test,
+                                w, b, nbCentres, epochs, lr);
+    } else {
+        // W = phi^+ * Y  garde pour comparer
+        phiInverse = pseudo_inverse(phi, n_train, nbCentres);
+        w = calcul_poids(phiInverse, Y, nbCentres, n_train, K_CLASSES);
+    }
+
+    float acc_train = accuracy_phi(phi, y_train, n_train, w, b, nbCentres);
+    float acc_test = accuracy_phi(phi_test, y_test, n_test, w, b, nbCentres);
     printf("acc train %.3f\n", acc_train);
     printf("acc test %.3f\n", acc_test);
 
     int conf[K_CLASSES][K_CLASSES];
-    confusion_test(lignes_test, y_test, n_test, centres, nbCentres, w, d, gamma, conf);
+    confusion_test(phi_test, y_test, n_test, w, b, nbCentres, conf);
     printf("confusion\n");
     for (int a = 0; a < K_CLASSES; a++) {
         printf("%d %d %d\n", conf[a][0], conf[a][1], conf[a][2]);
     }
 
-    // menage
+    //free
     liberateur_judiciaire(Y, n_train);
     liberateur_judiciaire(centres, nbCentres);
     liberateur_judiciaire(phi, n_train);
-    liberateur_judiciaire(phiInverse, nbCentres);
+    liberateur_judiciaire(phi_test, n_test);
+    if (phiInverse) liberateur_judiciaire(phiInverse, nbCentres);
     liberateur_judiciaire(w, K_CLASSES);
     free(lignes_train);
     free(lignes_test);
