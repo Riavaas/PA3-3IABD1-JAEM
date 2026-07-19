@@ -10,10 +10,13 @@ Construire un pipeline simple :
 - **Évaluation** (à compléter au fur et à mesure)
 
 Modèles visés :
-- **Modèle linéaire** (fait : testé sur datasets jouets `linear` et `xor`)
-- **MLP** (à venir : doit réussir le XOR là où le linéaire échoue)
-- **RBF** (fait : version naïve validée sur points jouets + version kmeans sur les images)
--  **SVM** (à venir)
+- **Modèle linéaire** (fait : testé sur datasets jouets `linear`/`xor`, appliqué aux images, bibliothèque dynamique avec pocket)
+- **MLP** (fait : réussit XOR là où le linéaire échoue, appliqué aux images, bibliothèque dynamique)
+- **RBF** (fait : version naïve validée sur points jouets + version kmeans sur les images, deux modes d'apprentissage — pinv et rosenblatt+pocket+shuffle — bibliothèque dynamique)
+- **SVM** (à venir)
+
+Livrables complémentaires :
+- **`site_gradio/`** : application cliente (upload d'une photo, choix du modèle, prédiction), qui charge les 3 modèles via leurs bibliothèques dynamiques avec sauvegarde/chargement des poids entraînés.
 
 ### Arborescence (état actuel)
 
@@ -43,20 +46,42 @@ PA3-3IABD1-JAEM/
 │   ├── make_toy_dataset.py        # génère datasets/toy/linear.csv et xor.csv
 │   └── utils.py                   # helpers
 │
-├── models/                        # Implémentations des modèles (en C)
-│   └── lineaire/                  # modèles linéaires + fichiers liés
-│       ├── linear_model.c         # perceptron multi-classes (images, format binaire)
-│       ├── linear_model_csv.c     # perceptron 2 classes (lit un CSV) + écrit poids.txt
-│       ├── linear_modele_droite.c # régression linéaire (exercice perso, hors sujet projet)
-│       ├── notebook_linear.ipynb  # notebook : lance le C (images) et trace les graphes
-│       ├── poids.txt              # GÉNÉRÉ : poids w1 w2 b de la dernière exécution
-│       └── test_points.txt
+├── models/                        # Implémentations des modèles (en C / C++)
+│   ├── lineaire/                  # modèles linéaires + fichiers liés
+│   │   ├── linear_model.c         # perceptron multi-classes (images, format binaire)
+│   │   ├── linear_model_csv.c     # perceptron 2 classes (lit un CSV) + écrit poids.txt
+│   │   ├── linear_model_lib.c     # bibliothèque dynamique (fit/predict, avec pocket)
+│   │   ├── linear_modele_droite.c # régression linéaire (exercice perso, hors sujet projet)
+│   │   ├── notebook_linear.ipynb  # notebook : lance le C (images) et trace les graphes
+│   │   ├── test_linear_lib.ipynb  # notebook : teste la bibliothèque dynamique (ctypes)
+│   │   ├── poids.txt              # GÉNÉRÉ : poids w1 w2 b de la dernière exécution
+│   │   └── test_points.txt
+│   │
+│   ├── mlp/                       # Perceptron Multi-Couches (PMC)
+│   │   ├── mlp_csv.c               # version jouet 2 classes (lit un CSV)
+│   │   ├── mlp.c                   # version images (K=3, softmax)
+│   │   ├── mlp_lib.c               # bibliothèque dynamique (entrainer/predire_batch)
+│   │   ├── notebook_mlp.ipynb      # notebook : lance le C et trace les graphes
+│   │   ├── test_mlp_lib.ipynb      # notebook : teste la bibliothèque dynamique (ctypes)
+│   │   ├── JOURNAL.md              # notes d'expérimentation (bugs, stabilité multi-graines)
+│   │   └── poids_mlp.txt           # GÉNÉRÉ : poids de la dernière exécution
+│   │
+│   ├── rbf/                        # RBF Network (C++)
+│   │   ├── rbf_simple.cpp          # version pédago : 6 points hardcodés (naïf + kmeans)
+│   │   ├── rbf.cpp                 # version images, modes pinv et rosenblatt+pocket+shuffle
+│   │   ├── rbf_lib.cpp             # bibliothèque dynamique (entrainer pinv + entrainer_rosenblatt)
+│   │   ├── notebook_rbf.ipynb      # notebook : lance le C++ et trace les graphes
+│   │   ├── test_rbf_lib.ipynb      # notebook : teste la bibliothèque dynamique (ctypes)
+│   │   ├── suivi_resultats.md      # trace des runs RBF (gamma, K, seeds, résultats)
+│   │   └── eigen-5.0.0/            # librairie Eigen (IGNORÉE par git, voir Partie RBF)
+│   │
+│   └── cache_gradio/                # GÉNÉRÉ : poids sauvegardés (.npz) pour le site
 │
-├── models/rbf/                    # RBF Network (C++)
-│   ├── rbf_simple.cpp             # version pédago : 6 points hardcodés (naïf + kmeans)
-│   ├── rbf.cpp                    # version images (mêmes fichiers binaires que linear_model.c)
-│   ├── notebook_rbf.ipynb         # notebook : lance le C++ et trace les graphes
-│   └── eigen-5.0.0/               # librairie Eigen (IGNORÉE par git, à télécharger, voir Partie RBF)
+├── site_gradio/                    # Application cliente (Gradio)
+│   ├── app.py                      # charge les 3 modèles via ctypes, prédiction sur upload
+│   ├── build_libs.py / build_libs.sh # compile les 3 bibliothèques dynamiques
+│   ├── requirements.txt
+│   └── README.md                   # installation, fonctionnement, limites
 │
 ├── visualization/                 # Scripts qui produisent des graphes
 │   ├── plot_linear.py             # points + droite de décision (lit poids.txt)
@@ -289,6 +314,47 @@ Résultat attendu : accuracy de test autour de **0.40**, à peine au-dessus du h
 
 ---
 
+### Partie MLP — Perceptron Multi-Couches (C)
+
+Le MLP ajoute une couche cachée (activation sigmoïde) entre l'entrée et la sortie (softmax,
+K=3 classes), ce qui lui permet d'apprendre des frontières non linéaires — contrairement au
+modèle linéaire, il réussit XOR. Rétropropagation complète (couche cachée corrigée avec
+l'**ancien** poids de sortie, avant sa propre mise à jour — piège d'ordre documenté dans
+`models/mlp/JOURNAL.md`).
+
+Fichiers :
+- `models/mlp/mlp_csv.c` : version jouet 2 classes (lit un CSV), validée sur `linear.csv` et `xor.csv` (100%).
+- `models/mlp/mlp.c` : version images (mêmes fichiers `.f32bin`/`.i32bin` que `linear_model.c`), K=3, softmax.
+- `models/mlp/mlp_lib.c` : bibliothèque dynamique (`entrainer`/`predire_batch`), utilisée par `site_gradio/`.
+- `models/mlp/notebook_mlp.ipynb`, `models/mlp/test_mlp_lib.ipynb` : notebooks interactifs.
+- `models/mlp/JOURNAL.md` : notes d'expérimentation (bugs rencontrés, stabilité multi-graines).
+
+#### Entraîner sur les images (C)
+
+```bash
+gcc -O2 models/mlp/mlp.c -o models/mlp/mlp -lm
+./models/mlp/mlp \
+  datasets/transformed/rgb/normalisee/X_train.f32bin \
+  datasets/transformed/rgb/normalisee/y_train.i32bin \
+  datasets/transformed/rgb/normalisee/X_test.f32bin \
+  datasets/transformed/rgb/normalisee/y_test.i32bin \
+  32 30 0.001 67
+```
+
+Arguments : `./models/mlp/mlp <X_train> <y_train> <X_test> <y_test> [H] [epochs] [lr] [seed]`
+(par défaut : NB normalisée, H=32, epochs=30, lr=0.001, seed=67).
+
+**Important** : n'utiliser que des variantes **normalisées**. Sur des pixels bruts non normalisés,
+le MLP s'effondre totalement (sature la sigmoïde dès l'initialisation, prédit toujours la même
+classe) — contrairement au modèle linéaire qui dégrade juste. Meilleur résultat obtenu :
+`rgb/normalisee`, H=32, accuracy test ≈ 0.618, validé sur 3 graines (67/42/96) avec une variance
+faible (0.619 ± 0.004, voir `JOURNAL.md`).
+
+Sortie : une ligne `epoch <e> train <acc> test <acc>` par epoch, puis une matrice de confusion
+3×3 sur le test, et les poids sont sauvegardés dans `models/mlp/poids_mlp.txt`.
+
+---
+
 ### Partie RBF — Radial Basis Function Network (C++)
 
 Le RBF remplace les hyperplans du modèle linéaire par des « influences » gaussiennes :
@@ -423,3 +489,51 @@ Remarques :
 - perf : `rgb` (d=49152) est ~10× plus lent que `nb` (d=4096) → régler gamma/nb_centres
   sur `nb` d'abord, puis lancer la comparaison des variantes
 - les binaires compilés (`models/rbf/rbf`, `models/rbf/rbf_simple`) sont ignorés par git
+
+---
+
+### Bibliothèques dynamiques et application cliente (`site_gradio/`)
+
+Chaque modèle (linéaire, MLP, RBF) a une version bibliothèque dynamique en plus de sa version
+exécutable, appelable depuis Python via `ctypes` (données échangées directement en mémoire,
+sans fichier intermédiaire) :
+
+| Modèle | Source | Fonctions exposées |
+|--------|--------|---------------------|
+| Linéaire | `models/lineaire/linear_model_lib.c` | `fit(...)`, `predict(...)` — avec pocket |
+| MLP | `models/mlp/mlp_lib.c` | `entrainer(...)`, `predire_batch(...)` |
+| RBF | `models/rbf/rbf_lib.cpp` | `entrainer(...)` (pinv), `entrainer_rosenblatt(...)` (nouveau, pas encore branché sur le site) |
+
+Compiler les 3 bibliothèques (choisit automatiquement `.dll`/`.so`/`.dylib` selon l'OS) :
+
+```bash
+python site_gradio/build_libs.py
+```
+
+Sous Windows, `gcc`/`g++` doivent être dans le `PATH`. Le RBF nécessite en plus `models/rbf/eigen-5.0.0/` (voir plus haut).
+
+Chaque bibliothèque a son propre notebook de test isolé (`test_linear_lib.ipynb`, `test_mlp_lib.ipynb`, `test_rbf_lib.ipynb`), à côté du modèle correspondant.
+
+#### Lancer l'application cliente
+
+```bash
+python -m pip install -r requirements.txt
+python -m pip install -r site_gradio/requirements.txt
+python preprocessing/build_dataset.py --skip-drive   # si le dataset transformé n'existe pas
+python site_gradio/build_libs.py
+python site_gradio/app.py
+```
+
+Puis ouvrir `http://127.0.0.1:7860`. On charge une photo, on choisit un modèle, on obtient une prédiction.
+
+Au premier lancement, chaque modèle est entraîné une fois (via sa bibliothèque) puis ses poids
+sont sauvegardés dans `models/cache_gradio/*.npz` — au lancement suivant, ils sont rechargés
+directement, sans ré-entraînement (sauvegarde/chargement demandé par le syllabus). **Si une
+bibliothèque est mise à jour (ex. ajout du pocket), il faut supprimer le fichier `.npz`
+correspondant dans `models/cache_gradio/` pour forcer un nouvel entraînement**, sinon le site
+continue de servir d'anciens poids.
+
+Limites connues (détaillées dans `site_gradio/README.md`) : démonstration locale uniquement,
+scores du linéaire/RBF non calibrés (pas des probabilités), une seule variante de prétraitement
+utilisée (`nb/normalisee`), le RBF utilise encore son ancienne fonction (`entrainer`, pinv) —
+`entrainer_rosenblatt` existe dans la bibliothèque mais n'est pas encore branchée côté site.
