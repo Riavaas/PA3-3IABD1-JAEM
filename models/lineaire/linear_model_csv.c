@@ -16,9 +16,18 @@
  *
  * A la fin, on ECRIT les poids trouves dans "models/lineaire/poids.txt"
  * pour que le script Python puisse tracer la droite.
+ *
+ * --- Validation contre les cas de tests officiels du prof ---
+ * Le notebook "[Notebook] Cas de tests.ipynb" du prof definit des jeux de
+ * donnees de reference (Linear Simple, Linear Multiple, Cross...) avec des
+ * labels {-1,+1}. On les a regeneres en CSV {0,1} (meme convention que nos
+ * fichiers) dans datasets/toy/prof_*.csv, pour verifier que ce programme se
+ * comporte comme attendu sur les cas officiels, pas seulement sur les notres.
+ * Resultat attendu : OK sur prof_linear_simple.csv et prof_linear_multiple.csv
+ * (separables), KO sur prof_cross.csv (non separable, comme le XOR).
  */
 
-#define MAX_POINTS 100
+#define MAX_POINTS 600   /* prof_cross.csv contient 500 points */
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
