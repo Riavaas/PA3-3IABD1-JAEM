@@ -16,6 +16,7 @@ datasets/splits/
 datasets/transformed/
 datasets/for_c/
 # NB: datasets/toy/ N'EST PAS ignoré (linear.csv et xor.csv sont petits et utiles au groupe)
+*.npz
 
 # =========================
 # 📊 Sorties générées (graphes, poids, binaires C, cache du site)

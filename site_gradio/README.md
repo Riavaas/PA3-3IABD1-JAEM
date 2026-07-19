@@ -4,17 +4,18 @@ Ce dossier ajoute une interface Gradio minimale au projet. L’utilisateur charg
 
 ## Principe retenu
 
-- Une seule représentation est utilisée par les trois modèles : **niveaux de gris normalisés**.
-- Les données d’entraînement viennent de `datasets/transformed/nb/normalisee`.
+- Les modèles linéaire et MLP utilisent les **niveaux de gris normalisés**.
+- Le RBF utilise les **trois canaux RGB normalisés** depuis `datasets/transformed/rgb/normalisee`.
 - Si des paramètres sauvegardés existent dans `models/cache_gradio`, ils sont rechargés sans charger la bibliothèque native.
 - Sinon, le modèle sélectionné est entraîné lors de sa première utilisation, puis ses paramètres sont sauvegardés au format `.npz`.
-- Le RBF peut prendre davantage de temps lors du premier lancement.
+- Le RBF utilise Rosenblatt avec pocket et mélange (`400` centres, `gamma=0.0001`, `30` époques, `lr=0.01`) et peut prendre davantage de temps lors du premier lancement.
+- Au démarrage, les anciens caches `linear_nb_normalisee.npz` et `rbf_nb_normalisee.npz` sont supprimés afin d’éviter de recharger des paramètres incompatibles.
 
 ## Informations affichées
 
 - **Modèle linéaire** : scores bruts `W × x + b` pour les trois classes.
 - **MLP** : probabilités softmax internes calculées par la couche de sortie. Elles ne sont pas calibrées.
-- **RBF** : scores bruts calculés à partir des influences gaussiennes et des poids de sortie.
+- **RBF** : scores bruts calculés à partir des influences gaussiennes, des poids de sortie et des biais appris par Rosenblatt.
 
 Les scores du modèle linéaire et du RBF ne sont pas des probabilités. Dans les trois cas, la classe dont la sortie est la plus élevée devient la prédiction.
 
